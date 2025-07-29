@@ -9,6 +9,7 @@ import * as bcrypt from 'bcryptjs';
 import type { User } from '@prisma/client';
 import { Role } from '../common/enums/role.enum';
 import { EmployeeAccessPolicy } from '../policies/employee-access.policy';
+import { successResponse } from '../../utilies/response';
 
 @Injectable()
 export class UsersService {
@@ -17,10 +18,10 @@ export class UsersService {
     private employeeAccessPolicy: EmployeeAccessPolicy,
   ) {}
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
+  async create(createUserDto: CreateUserDto) {
     const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
 
-    return this.prisma.user.create({
+    const user = await this.prisma.user.create({
       data: {
         ...createUserDto,
         password: hashedPassword,
@@ -29,29 +30,35 @@ export class UsersService {
         company: true,
       },
     });
+
+    return successResponse(user, 'User created successfully', 201);
   }
 
-  async findAll(): Promise<User[]> {
-    return this.prisma.user.findMany({
+  async findAll() {
+    const users = await this.prisma.user.findMany({
       include: {
         company: true,
       },
     });
+
+    return successResponse(users, 'Users retrieved successfully', 200);
   }
 
-  async findOne(id: string, currentUser: User): Promise<User | null> {
+  async findOne(id: number, currentUser: User) {
     // Use ensure method which already fetches and validates access
-    return await this.employeeAccessPolicy.ensureUserCanAccessEmployee(
+    const user = await this.employeeAccessPolicy.ensureUserCanAccessEmployee(
       currentUser,
       id,
     );
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return successResponse(user, 'User retrieved successfully', 200);
   }
 
-  async update(
-    id: string,
-    updateUserDto: UpdateUserDto,
-    currentUser: User,
-  ): Promise<User> {
+  async update(id: number, updateUserDto: UpdateUserDto, currentUser: User) {
     // Use ensure method which already fetches and validates access
     const existingUser =
       await this.employeeAccessPolicy.ensureUserCanAccessEmployee(
@@ -79,10 +86,10 @@ export class UsersService {
       },
     });
 
-    return updatedUser;
+    return successResponse(updatedUser, 'User updated successfully', 200);
   }
 
-  async remove(id: string, currentUser: User): Promise<User> {
+  async remove(id: number, currentUser: User) {
     // Use ensure method which already fetches and validates access
     const user = await this.employeeAccessPolicy.ensureUserCanAccessEmployee(
       currentUser,
@@ -92,15 +99,17 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    return this.prisma.user.delete({
+    const deletedUser = await this.prisma.user.delete({
       where: { id },
       include: {
         company: true,
       },
     });
+
+    return successResponse(deletedUser, 'User deleted successfully', 200);
   }
 
-  async findByCompany(companyId: string, currentUser: User): Promise<User[]> {
+  async findByCompany(companyId: number, currentUser: User) {
     // Validate access to company data first
     if (currentUser.role === Role.COMPANY_ADMIN) {
       if (currentUser.companyId !== companyId) {
@@ -110,11 +119,13 @@ export class UsersService {
       throw new ForbiddenException('Access denied');
     }
 
-    return this.prisma.user.findMany({
+    const users = await this.prisma.user.findMany({
       where: { companyId },
       include: {
         company: true,
       },
     });
+
+    return successResponse(users, 'Company users retrieved successfully', 200);
   }
 }

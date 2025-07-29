@@ -9,7 +9,7 @@ export class CompanyAccessPolicy {
 
   async ensureUserCanAccessCompany(
     user: User,
-    companyId: string,
+    companyId: number,
   ): Promise<Company | null> {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
@@ -33,7 +33,7 @@ export class CompanyAccessPolicy {
     throw new ForbiddenException('Access denied to this company');
   }
 
-  ensureUserCanManageCompany(user: User, companyId: string): void {
+  ensureUserCanManageCompany(user: User, companyId: number): void {
     if (user.role === Role.SUPER_ADMIN) {
       return; // Super admin can manage all companies
     }
@@ -53,7 +53,7 @@ export class CompanyAccessPolicy {
     throw new ForbiddenException('Access denied to create companies');
   }
 
-  canRead(user: User, companyId: string): void {
+  canRead(user: User, companyId: number): void {
     if (user.role === Role.SUPER_ADMIN) {
       return; // Super admin can read all companies
     }
@@ -65,7 +65,7 @@ export class CompanyAccessPolicy {
     throw new ForbiddenException('Access denied to read this company');
   }
 
-  canUpdate(user: User, companyId: string): void {
+  canUpdate(user: User, companyId: number): void {
     if (user.role === Role.SUPER_ADMIN) {
       return; // Super admin can update all companies
     }
@@ -85,7 +85,7 @@ export class CompanyAccessPolicy {
     throw new ForbiddenException('Access denied to delete companies');
   }
 
-  canGenerateReport(user: User, companyId: string): void {
+  canGenerateReport(user: User, companyId: number): void {
     if (user.role === Role.SUPER_ADMIN) {
       return; // Super admin can generate reports for any company
     }

@@ -9,7 +9,7 @@ export class EmployeeAccessPolicy {
 
   async ensureUserCanAccessEmployee(
     user: User,
-    employeeId: string,
+    employeeId: number,
   ): Promise<User | null> {
     const userByID = await this.prisma.user.findUnique({
       where: { id: employeeId },

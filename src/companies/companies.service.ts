@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCompanyDto, UpdateCompanyDto } from './dto/company.dto';
-import type { Company, User } from '@prisma/client';
+import type { User } from '@prisma/client';
 import { CompanyAccessPolicy } from '../policies/company-access.policy';
+import { successResponse } from '../../utilies/response';
 
 @Injectable()
 export class CompaniesService {
@@ -11,14 +12,16 @@ export class CompaniesService {
     private companyAccessPolicy: CompanyAccessPolicy,
   ) {}
 
-  async create(createCompanyDto: CreateCompanyDto): Promise<Company> {
-    return this.prisma.company.create({
+  async create(createCompanyDto: CreateCompanyDto) {
+    const company = await this.prisma.company.create({
       data: createCompanyDto,
     });
+
+    return successResponse(company, 'Company created successfully', 201);
   }
 
-  async findAll(): Promise<Company[]> {
-    return this.prisma.company.findMany({
+  async findAll() {
+    const companies = await this.prisma.company.findMany({
       include: {
         users: true,
         _count: {
@@ -29,42 +32,46 @@ export class CompaniesService {
         },
       },
     });
+
+    return successResponse(companies, 'Companies retrieved successfully', 200);
   }
 
-  async findOne(id: string, user: User): Promise<Company | null> {
+  async findOne(id: number, user: User) {
     // Use ensure method which already fetches and validates access
-    return await this.companyAccessPolicy.ensureUserCanAccessCompany(user, id);
+    const company = await this.companyAccessPolicy.ensureUserCanAccessCompany(
+      user,
+      id,
+    );
+
+    return successResponse(company, 'Company retrieved successfully', 200);
   }
 
-  async update(
-    id: string,
-    updateCompanyDto: UpdateCompanyDto,
-    user: User,
-  ): Promise<Company> {
+  async update(id: number, updateCompanyDto: UpdateCompanyDto, user: User) {
     // Use ensure method which already validates access and fetches company
     this.companyAccessPolicy.ensureUserCanManageCompany(user, id);
 
-    return this.prisma.company.update({
+    const company = await this.prisma.company.update({
       where: { id },
       data: updateCompanyDto,
       include: {
         users: true,
       },
     });
+
+    return successResponse(company, 'Company updated successfully', 200);
   }
 
-  async remove(id: string, user: User): Promise<Company> {
+  async remove(id: number, user: User) {
     await this.companyAccessPolicy.ensureUserCanAccessCompany(user, id);
-    return this.prisma.company.delete({
+
+    const company = await this.prisma.company.delete({
       where: { id },
     });
+
+    return successResponse(company, 'Company deleted successfully', 200);
   }
 
-  async generateDailyReport(
-    companyId: string,
-    date: Date,
-    user: User,
-  ): Promise<any> {
+  async generateDailyReport(companyId: number, date: Date, user: User) {
     // Use ensure method which already validates access and fetches company
     await this.companyAccessPolicy.ensureUserCanAccessCompany(user, companyId);
 
@@ -141,6 +148,10 @@ export class CompaniesService {
       },
     });
 
-    return reportData;
+    return successResponse(
+      reportData,
+      'Daily report generated successfully',
+      200,
+    );
   }
 }

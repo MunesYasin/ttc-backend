@@ -11,7 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export class TaskAccessPolicy {
   constructor(private prisma: PrismaService) {}
 
-  async ensureUserCanAccessTask(user: User, taskId: string): Promise<Task> {
+  async ensureUserCanAccessTask(user: User, taskId: number): Promise<Task> {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
       include: {
@@ -41,7 +41,7 @@ export class TaskAccessPolicy {
     throw new ForbiddenException('Access denied to read this task');
   }
 
-  async canCreate(user: User, userId: string): Promise<void> {
+  async canCreate(user: User, userId: number): Promise<void> {
     if (user.role === Role.SUPER_ADMIN) {
       return; // Super admin can create tasks for anyone
     }
@@ -66,7 +66,7 @@ export class TaskAccessPolicy {
     throw new ForbiddenException('Access denied to create this task');
   }
 
-  async canRead(user: User, taskId: string): Promise<Task> {
+  async canRead(user: User, taskId: number): Promise<Task> {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
       include: {
@@ -96,7 +96,7 @@ export class TaskAccessPolicy {
     throw new ForbiddenException('Access denied to read this task');
   }
 
-  async canUpdate(user: User, userId: string): Promise<void> {
+  async canUpdate(user: User, userId: number): Promise<void> {
     if (user.role === Role.SUPER_ADMIN) {
       return; // Super admin can update all tasks
     }
@@ -121,7 +121,7 @@ export class TaskAccessPolicy {
     throw new ForbiddenException('Access denied to update this task');
   }
 
-  async canDelete(user: User, userId: string): Promise<void> {
+  async canDelete(user: User, userId: number): Promise<void> {
     if (user.role === Role.SUPER_ADMIN) {
       return; // Super admin can delete all tasks
     }
@@ -146,7 +146,7 @@ export class TaskAccessPolicy {
     throw new ForbiddenException('Access denied to delete this task');
   }
 
-  canReadCompanyTasks(user: User, companyId: string): void {
+  canReadCompanyTasks(user: User, companyId: number): void {
     if (user.role === Role.SUPER_ADMIN) {
       return; // Super admin can read all company tasks
     }

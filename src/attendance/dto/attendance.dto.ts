@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsDateString } from 'class-validator';
+import { IsString, IsOptional, IsDateString, IsNumber } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class ClockInDto {
   @IsOptional()
@@ -13,8 +14,9 @@ export class ClockOutDto {
 }
 
 export class CreateAttendanceDto {
-  @IsString()
-  userId: string;
+  @Transform(({ value }) => (value ? parseInt(value as string, 10) : undefined))
+  @IsNumber()
+  userId: number;
 
   @IsDateString()
   date: string;

@@ -46,14 +46,14 @@ export class TasksController {
 
   @Get(':id')
   @Roles(Role.EMPLOYEE, Role.COMPANY_ADMIN, Role.SUPER_ADMIN)
-  findOne(@Param('id') id: string, @CurrentUser() user: User) {
+  findOne(@Param('id') id: number, @CurrentUser() user: User) {
     return this.tasksService.findOne(user, id);
   }
 
   @Patch(':id')
   @Roles(Role.EMPLOYEE, Role.COMPANY_ADMIN, Role.SUPER_ADMIN)
   update(
-    @Param('id') id: string,
+    @Param('id') id: number,
     @Body() updateTaskDto: UpdateTaskDto,
     @CurrentUser() user: User,
   ) {
@@ -62,7 +62,7 @@ export class TasksController {
 
   @Delete(':id')
   @Roles(Role.EMPLOYEE, Role.COMPANY_ADMIN, Role.SUPER_ADMIN)
-  remove(@Param('id') id: string, @CurrentUser() user: User) {
+  remove(@Param('id') id: number, @CurrentUser() user: User) {
     return this.tasksService.remove(user, id);
   }
 }

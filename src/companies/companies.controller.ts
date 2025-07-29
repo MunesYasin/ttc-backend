@@ -36,14 +36,14 @@ export class CompaniesController {
 
   @Get(':id')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
-  async findOne(@Param('id') id: string, @CurrentUser() user: User) {
+  async findOne(@Param('id') id: number, @CurrentUser() user: User) {
     return this.companiesService.findOne(id, user);
   }
 
   @Patch(':id')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   async update(
-    @Param('id') id: string,
+    @Param('id') id: number,
     @Body() updateCompanyDto: UpdateCompanyDto,
     @CurrentUser() user: User,
   ) {
@@ -52,14 +52,14 @@ export class CompaniesController {
 
   @Delete(':id')
   @Roles(Role.SUPER_ADMIN)
-  remove(@Param('id') id: string, @CurrentUser() user: User) {
+  remove(@Param('id') id: number, @CurrentUser() user: User) {
     return this.companiesService.remove(id, user);
   }
 
   @Get(':id/report/daily')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   getDailyReport(
-    @Param('id') id: string,
+    @Param('id') id: number,
     @Query('date') date: string,
     @CurrentUser() user: User,
   ) {

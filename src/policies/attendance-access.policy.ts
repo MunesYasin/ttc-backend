@@ -9,11 +9,10 @@ export class AttendanceAccessPolicy {
 
   async ensureUserCanAccessAttendance(
     user: User,
-    attendenceId: string,
+    attendenceId: number,
   ): Promise<AttendanceRecord | null> {
     const attendce = await this.prisma.attendanceRecord.findUnique({
       where: { id: attendenceId },
-      include: { user: true },
     });
 
     if (!attendce) {
@@ -24,12 +23,16 @@ export class AttendanceAccessPolicy {
       return attendce; // Super admin can access all attendance records
     }
 
-    if (user.role === Role.EMPLOYEE && user.id === attendce?.user.id) {
+    if (user.role === Role.EMPLOYEE && user.id === attendce?.userId) {
       return attendce; // Employee can access their own attendance
     }
 
     if (user.role === Role.COMPANY_ADMIN) {
-      if (attendce?.user.companyId !== user.companyId) {
+      // Need to fetch user to check company
+      const attendanceUser = await this.prisma.user.findUnique({
+        where: { id: attendce.userId },
+      });
+      if (attendanceUser?.companyId !== user.companyId) {
         throw new ForbiddenException('Access denied: user not in your company');
       }
       return attendce;
@@ -38,7 +41,7 @@ export class AttendanceAccessPolicy {
     throw new ForbiddenException('Access denied to this attendance record');
   }
 
-  async canCreate(user: User, userId: string): Promise<void> {
+  async canCreate(user: User, userId: number): Promise<void> {
     if (user.role === Role.SUPER_ADMIN) {
       return; // Super admin can create attendance for anyone
     }
@@ -48,26 +51,31 @@ export class AttendanceAccessPolicy {
     }
 
     if (user.role === Role.COMPANY_ADMIN) {
-      // Company admin can create attendance for employees in their company
+      // Validate that the user belongs to the same company
       const targetUser = await this.prisma.user.findUnique({
         where: { id: userId },
-        select: { companyId: true },
       });
 
-      if (!targetUser || targetUser.companyId !== user.companyId) {
-        throw new ForbiddenException('Access denied: user not in your company');
+      if (!targetUser) {
+        throw new ForbiddenException('User not found');
+      }
+
+      if (targetUser.companyId !== user.companyId) {
+        throw new ForbiddenException(
+          'Cannot create attendance for user outside your company',
+        );
       }
       return;
     }
 
     throw new ForbiddenException(
-      'Access denied to create this attendance record',
+      'Access denied: insufficient permissions to create attendance',
     );
   }
 
-  async canRead(user: User, userId: string): Promise<void> {
+  async canRead(user: User, userId: number): Promise<void> {
     if (user.role === Role.SUPER_ADMIN) {
-      return; // Super admin can read all attendance
+      return; // Super admin can read attendance for anyone
     }
 
     if (user.role === Role.EMPLOYEE && user.id === userId) {
@@ -75,26 +83,31 @@ export class AttendanceAccessPolicy {
     }
 
     if (user.role === Role.COMPANY_ADMIN) {
-      // Company admin can read employees' attendance in their company
+      // Validate that the user belongs to the same company
       const targetUser = await this.prisma.user.findUnique({
         where: { id: userId },
-        select: { companyId: true },
       });
 
-      if (!targetUser || targetUser.companyId !== user.companyId) {
-        throw new ForbiddenException('Access denied: user not in your company');
+      if (!targetUser) {
+        throw new ForbiddenException('User not found');
+      }
+
+      if (targetUser.companyId !== user.companyId) {
+        throw new ForbiddenException(
+          'Cannot read attendance for user outside your company',
+        );
       }
       return;
     }
 
     throw new ForbiddenException(
-      'Access denied to read this attendance record',
+      'Access denied: insufficient permissions to read attendance',
     );
   }
 
-  async canUpdate(user: User, userId: string): Promise<void> {
+  async canUpdate(user: User, userId: number): Promise<void> {
     if (user.role === Role.SUPER_ADMIN) {
-      return; // Super admin can update all attendance
+      return; // Super admin can update attendance for anyone
     }
 
     if (user.role === Role.EMPLOYEE && user.id === userId) {
@@ -102,55 +115,68 @@ export class AttendanceAccessPolicy {
     }
 
     if (user.role === Role.COMPANY_ADMIN) {
-      // Company admin can update employees' attendance in their company
+      // Validate that the user belongs to the same company
       const targetUser = await this.prisma.user.findUnique({
         where: { id: userId },
-        select: { companyId: true },
       });
 
-      if (!targetUser || targetUser.companyId !== user.companyId) {
-        throw new ForbiddenException('Access denied: user not in your company');
+      if (!targetUser) {
+        throw new ForbiddenException('User not found');
+      }
+
+      if (targetUser.companyId !== user.companyId) {
+        throw new ForbiddenException(
+          'Cannot update attendance for user outside your company',
+        );
       }
       return;
     }
 
     throw new ForbiddenException(
-      'Access denied to update this attendance record',
+      'Access denied: insufficient permissions to update attendance',
     );
   }
 
-  async canDelete(user: User, userId: string): Promise<void> {
+  async canDelete(user: User, userId: number): Promise<void> {
     if (user.role === Role.SUPER_ADMIN) {
-      return; // Super admin can delete all attendance
+      return; // Super admin can delete attendance for anyone
     }
 
+    // Company admins can delete attendance records in their company
     if (user.role === Role.COMPANY_ADMIN) {
-      // Company admin can delete employees' attendance in their company
+      // Validate that the user belongs to the same company
       const targetUser = await this.prisma.user.findUnique({
         where: { id: userId },
-        select: { companyId: true },
       });
 
-      if (!targetUser || targetUser.companyId !== user.companyId) {
-        throw new ForbiddenException('Access denied: user not in your company');
+      if (!targetUser) {
+        throw new ForbiddenException('User not found');
+      }
+
+      if (targetUser.companyId !== user.companyId) {
+        throw new ForbiddenException(
+          'Cannot delete attendance for user outside your company',
+        );
       }
       return;
     }
 
     throw new ForbiddenException(
-      'Access denied to delete this attendance record',
+      'Access denied: insufficient permissions to delete attendance',
     );
   }
 
-  canReadCompanyAttendance(user: User, companyId: string): void {
+  canAccessCompanyData(user: User, companyId: number): void {
     if (user.role === Role.SUPER_ADMIN) {
-      return; // Super admin can read all company attendance
+      return; // Super admin can access all company data
     }
 
     if (user.role === Role.COMPANY_ADMIN && user.companyId === companyId) {
-      return; // Company admin can read their company's attendance
+      return; // Company admin can access their own company data
     }
 
-    throw new ForbiddenException('Access denied to read company attendance');
+    throw new ForbiddenException(
+      'Access denied: insufficient permissions to access company data',
+    );
   }
 }

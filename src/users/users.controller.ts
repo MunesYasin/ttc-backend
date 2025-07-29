@@ -40,7 +40,7 @@ export class UsersController {
   @Get(':id')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.EMPLOYEE)
   findOne(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.usersService.findOne(id, user);
+    return this.usersService.findOne(parseInt(id, 10), user);
   }
 
   @Patch(':id')
@@ -50,12 +50,12 @@ export class UsersController {
     @Body() updateUserDto: UpdateUserDto,
     @CurrentUser() user: User,
   ) {
-    return this.usersService.update(id, updateUserDto, user);
+    return this.usersService.update(parseInt(id, 10), updateUserDto, user);
   }
 
   @Delete(':id')
   @Roles(Role.SUPER_ADMIN)
   remove(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.usersService.remove(id, user);
+    return this.usersService.remove(parseInt(id, 10), user);
   }
 }

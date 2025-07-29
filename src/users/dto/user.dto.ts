@@ -4,8 +4,10 @@ import {
   IsEmail,
   IsEnum,
   MinLength,
+  IsNumber,
 } from 'class-validator';
 import { Role } from '../../common/enums/role.enum';
+import { Transform } from 'class-transformer';
 
 export class CreateUserDto {
   @IsString()
@@ -22,8 +24,9 @@ export class CreateUserDto {
   role: Role;
 
   @IsOptional()
-  @IsString()
-  companyId?: string;
+  @Transform(({ value }) => (value ? parseInt(value as string, 10) : undefined))
+  @IsNumber()
+  companyId?: number;
 }
 
 export class UpdateUserDto {
@@ -45,6 +48,7 @@ export class UpdateUserDto {
   role?: Role;
 
   @IsOptional()
-  @IsString()
-  companyId?: string;
+  @Transform(({ value }) => (value ? parseInt(value as string, 10) : undefined))
+  @IsNumber()
+  companyId?: number;
 }

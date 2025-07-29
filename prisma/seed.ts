@@ -22,27 +22,33 @@ async function main() {
   console.log('Super Admin created:', superAdmin.email);
 
   // Create Companies
-  const company1 = await prisma.company.upsert({
-    where: { id: 'tech-solutions-inc' },
-    update: {},
-    create: {
-      id: 'tech-solutions-inc',
-      name: 'Tech Solutions Inc.',
-      industry: 'Technology',
-      logoUrl: 'https://example.com/logo1.png',
-    },
+  let company1 = await prisma.company.findFirst({
+    where: { name: 'Tech Solutions Inc.' },
   });
+  
+  if (!company1) {
+    company1 = await prisma.company.create({
+      data: {
+        name: 'Tech Solutions Inc.',
+        industry: 'Technology',
+        logoUrl: 'https://example.com/logo1.png',
+      },
+    });
+  }
 
-  const company2 = await prisma.company.upsert({
-    where: { id: 'marketing-agency' },
-    update: {},
-    create: {
-      id: 'marketing-agency',
-      name: 'Creative Marketing Agency',
-      industry: 'Marketing',
-      logoUrl: 'https://example.com/logo2.png',
-    },
+  let company2 = await prisma.company.findFirst({
+    where: { name: 'Creative Marketing Agency' },
   });
+  
+  if (!company2) {
+    company2 = await prisma.company.create({
+      data: {
+        name: 'Creative Marketing Agency',
+        industry: 'Marketing',
+        logoUrl: 'https://example.com/logo2.png',
+      },
+    });
+  }
 
   console.log('Companies created:', company1.name, company2.name);
 

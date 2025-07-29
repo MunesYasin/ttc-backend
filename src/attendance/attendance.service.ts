@@ -5,9 +5,10 @@ import {
   ClockOutDto,
   CreateAttendanceDto,
 } from './dto/attendance.dto';
-import type { AttendanceRecord, User } from '@prisma/client';
+import type { User } from '@prisma/client';
 import { AttendanceAccessPolicy } from '../policies/attendance-access.policy';
 import { Role } from 'src/common';
+import { successResponse } from '../../utilies/response';
 
 @Injectable()
 export class AttendanceService {
@@ -16,10 +17,7 @@ export class AttendanceService {
     private attendanceAccessPolicy: AttendanceAccessPolicy,
   ) {}
 
-  async clockIn(
-    userId: string,
-    clockInDto: ClockInDto,
-  ): Promise<AttendanceRecord> {
+  async clockIn(userId: number, clockInDto: ClockInDto) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const existingRecord = await this.prisma.attendanceRecord.findUnique({
@@ -36,9 +34,10 @@ export class AttendanceService {
     }
 
     const clockInTime = new Date();
+    let attendanceRecord;
 
     if (existingRecord) {
-      return this.prisma.attendanceRecord.update({
+      attendanceRecord = await this.prisma.attendanceRecord.update({
         where: { id: existingRecord.id },
         data: {
           clockInAt: clockInTime,
@@ -49,7 +48,7 @@ export class AttendanceService {
         },
       });
     } else {
-      return this.prisma.attendanceRecord.create({
+      attendanceRecord = await this.prisma.attendanceRecord.create({
         data: {
           userId,
           date: today,
@@ -61,12 +60,11 @@ export class AttendanceService {
         },
       });
     }
+
+    return successResponse(attendanceRecord, 'Clock in successful', 200);
   }
 
-  async clockOut(
-    currentUser: User,
-    clockOutDto: ClockOutDto,
-  ): Promise<AttendanceRecord> {
+  async clockOut(currentUser: User, clockOutDto: ClockOutDto) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const existingRecord = await this.prisma.attendanceRecord.findUnique({
@@ -88,7 +86,7 @@ export class AttendanceService {
 
     const clockOutTime = new Date();
 
-    return this.prisma.attendanceRecord.update({
+    const attendanceRecord = await this.prisma.attendanceRecord.update({
       where: { id: existingRecord.id },
       data: {
         clockOutAt: clockOutTime,
@@ -98,17 +96,29 @@ export class AttendanceService {
         user: true,
       },
     });
+
+    return successResponse(attendanceRecord, 'Clock out successful', 200);
   }
 
-  async getTodayAttendance(
-    currentUser: User,
-  ): Promise<AttendanceRecord[] | null> {
+  async getTodayAttendance(currentUser: User) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    let attendanceRecords;
+
     if (currentUser.role === Role.SUPER_ADMIN) {
-      return this.prisma.attendanceRecord.findMany({
+      attendanceRecords = await this.prisma.attendanceRecord.findMany({
         where: {
+          date: today,
+        },
+        include: {
+          user: true,
+        },
+      });
+    } else {
+      attendanceRecords = await this.prisma.attendanceRecord.findMany({
+        where: {
+          user: { companyId: currentUser.companyId },
           date: today,
         },
         include: {
@@ -117,22 +127,14 @@ export class AttendanceService {
       });
     }
 
-    return this.prisma.attendanceRecord.findMany({
-      where: {
-        user: { companyId: currentUser.companyId },
-        date: today,
-      },
-      include: {
-        user: true,
-      },
-    });
+    return successResponse(
+      attendanceRecords,
+      'Today attendance retrieved successfully',
+      200,
+    );
   }
 
-  async getUserAttendance(
-    currentUser: User,
-    startDate?: Date,
-    endDate?: Date,
-  ): Promise<AttendanceRecord[]> {
+  async getUserAttendance(currentUser: User, startDate?: Date, endDate?: Date) {
     const where: any = { userId: currentUser.id };
     if (startDate || endDate) {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
@@ -143,7 +145,7 @@ export class AttendanceService {
       if (endDate) where.date.lte = endDate;
     }
 
-    return this.prisma.attendanceRecord.findMany({
+    const attendanceRecords = await this.prisma.attendanceRecord.findMany({
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       where,
       include: {
@@ -153,18 +155,21 @@ export class AttendanceService {
         date: 'desc',
       },
     });
+
+    return successResponse(
+      attendanceRecords,
+      'User attendance retrieved successfully',
+      200,
+    );
   }
 
-  async create(
-    currentUser: User,
-    createAttendanceDto: CreateAttendanceDto,
-  ): Promise<AttendanceRecord> {
+  async create(currentUser: User, createAttendanceDto: CreateAttendanceDto) {
     await this.attendanceAccessPolicy.canCreate(
       currentUser,
       createAttendanceDto.userId,
     );
 
-    return this.prisma.attendanceRecord.create({
+    const attendanceRecord = await this.prisma.attendanceRecord.create({
       data: {
         userId: createAttendanceDto.userId,
         date: new Date(createAttendanceDto.date),
@@ -180,5 +185,11 @@ export class AttendanceService {
         user: true,
       },
     });
+
+    return successResponse(
+      attendanceRecord,
+      'Attendance record created successfully',
+      201,
+    );
   }
 }

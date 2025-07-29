@@ -26,8 +26,11 @@ export class SuperAdminController {
 
   @Get('dashboard')
   async getDashboard() {
-    const companies = await this.companiesService.findAll();
-    const users = await this.usersService.findAll();
+    const companiesResponse = await this.companiesService.findAll();
+    const usersResponse = await this.usersService.findAll();
+
+    const companies = companiesResponse.data;
+    const users = usersResponse.data;
 
     return {
       totalCompanies: companies.length,
