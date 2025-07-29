@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   UseGuards,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
@@ -39,23 +40,23 @@ export class UsersController {
 
   @Get(':id')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.EMPLOYEE)
-  findOne(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.usersService.findOne(parseInt(id, 10), user);
+  findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    return this.usersService.findOne(id, user);
   }
 
   @Patch(':id')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   update(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() updateUserDto: UpdateUserDto,
     @CurrentUser() user: User,
   ) {
-    return this.usersService.update(parseInt(id, 10), updateUserDto, user);
+    return this.usersService.update(id, updateUserDto, user);
   }
 
   @Delete(':id')
   @Roles(Role.SUPER_ADMIN)
-  remove(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.usersService.remove(parseInt(id, 10), user);
+  remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    return this.usersService.remove(id, user);
   }
 }

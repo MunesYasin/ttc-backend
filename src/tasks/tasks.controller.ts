@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Query,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
@@ -46,14 +47,14 @@ export class TasksController {
 
   @Get(':id')
   @Roles(Role.EMPLOYEE, Role.COMPANY_ADMIN, Role.SUPER_ADMIN)
-  findOne(@Param('id') id: number, @CurrentUser() user: User) {
+  findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
     return this.tasksService.findOne(user, id);
   }
 
   @Patch(':id')
   @Roles(Role.EMPLOYEE, Role.COMPANY_ADMIN, Role.SUPER_ADMIN)
   update(
-    @Param('id') id: number,
+    @Param('id', ParseIntPipe) id: number,
     @Body() updateTaskDto: UpdateTaskDto,
     @CurrentUser() user: User,
   ) {
@@ -62,7 +63,7 @@ export class TasksController {
 
   @Delete(':id')
   @Roles(Role.EMPLOYEE, Role.COMPANY_ADMIN, Role.SUPER_ADMIN)
-  remove(@Param('id') id: number, @CurrentUser() user: User) {
+  remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
     return this.tasksService.remove(user, id);
   }
 }

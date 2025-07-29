@@ -51,10 +51,6 @@ export class UsersService {
       id,
     );
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
     return successResponse(user, 'User retrieved successfully', 200);
   }
 
