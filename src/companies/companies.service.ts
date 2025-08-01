@@ -4,6 +4,7 @@ import { CreateCompanyDto, UpdateCompanyDto } from './dto/company.dto';
 import type { User } from '@prisma/client';
 import { CompanyAccessPolicy } from '../policies/company-access.policy';
 import { successResponse } from '../../utilies/response';
+import { handlePrismaError } from 'utilies/error-handler';
 
 @Injectable()
 export class CompaniesService {
@@ -13,145 +14,176 @@ export class CompaniesService {
   ) {}
 
   async create(createCompanyDto: CreateCompanyDto) {
-    const company = await this.prisma.company.create({
-      data: createCompanyDto,
-    });
+    try {
+      const company = await this.prisma.company.create({
+        data: createCompanyDto,
+      });
 
-    return successResponse(company, 'Company created successfully', 201);
+      return successResponse(company, 'Company created successfully', 201);
+    } catch (error) {
+      handlePrismaError(error);
+    }
   }
 
   async findAll() {
-    const companies = await this.prisma.company.findMany({
-      include: {
-        users: true,
-        _count: {
-          select: {
-            users: true,
-            reports: true,
+    try {
+      const companies = await this.prisma.company.findMany({
+        include: {
+          users: true,
+          _count: {
+            select: {
+              users: true,
+              reports: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    return successResponse(companies, 'Companies retrieved successfully', 200);
+      return successResponse(
+        companies,
+        'Companies retrieved successfully',
+        200,
+      );
+    } catch (error) {
+      handlePrismaError(error);
+    }
   }
 
   async findOne(id: number, user: User) {
-    // Use ensure method which already fetches and validates access
-    const company = await this.companyAccessPolicy.ensureUserCanAccessCompany(
-      user,
-      id,
-    );
+    try {
+      // Use ensure method which already fetches and validates access
+      const company = await this.companyAccessPolicy.ensureUserCanAccessCompany(
+        user,
+        id,
+      );
 
-    return successResponse(company, 'Company retrieved successfully', 200);
+      return successResponse(company, 'Company retrieved successfully', 200);
+    } catch (error) {
+      handlePrismaError(error);
+    }
   }
 
   async update(id: number, updateCompanyDto: UpdateCompanyDto, user: User) {
-    // Use ensure method which already validates access and fetches company
-    this.companyAccessPolicy.ensureUserCanManageCompany(user, id);
+    try {
+      // Use ensure method which already validates access and fetches company
+      this.companyAccessPolicy.ensureUserCanManageCompany(user, id);
 
-    const company = await this.prisma.company.update({
-      where: { id },
-      data: updateCompanyDto,
-      include: {
-        users: true,
-      },
-    });
+      const company = await this.prisma.company.update({
+        where: { id },
+        data: updateCompanyDto,
+        include: {
+          users: true,
+        },
+      });
 
-    return successResponse(company, 'Company updated successfully', 200);
+      return successResponse(company, 'Company updated successfully', 200);
+    } catch (error) {
+      handlePrismaError(error);
+    }
   }
 
   async remove(id: number, user: User) {
-    await this.companyAccessPolicy.ensureUserCanAccessCompany(user, id);
+    try {
+      await this.companyAccessPolicy.ensureUserCanAccessCompany(user, id);
 
-    const company = await this.prisma.company.delete({
-      where: { id },
-    });
+      const company = await this.prisma.company.delete({
+        where: { id },
+      });
 
-    return successResponse(company, 'Company deleted successfully', 200);
+      return successResponse(company, 'Company deleted successfully', 200);
+    } catch (error) {
+      handlePrismaError(error);
+    }
   }
 
   async generateDailyReport(companyId: number, date: Date, user: User) {
-    // Use ensure method which already validates access and fetches company
-    await this.companyAccessPolicy.ensureUserCanAccessCompany(user, companyId);
+    try {
+      // Use ensure method which already validates access and fetches company
+      await this.companyAccessPolicy.ensureUserCanAccessCompany(
+        user,
+        companyId,
+      );
 
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
 
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
 
-    const attendanceRecords = await this.prisma.attendanceRecord.findMany({
-      where: {
-        date: {
-          gte: startOfDay,
-          lte: endOfDay,
+      const attendanceRecords = await this.prisma.attendanceRecord.findMany({
+        where: {
+          date: {
+            gte: startOfDay,
+            lte: endOfDay,
+          },
+          user: {
+            companyId,
+          },
         },
-        user: {
-          companyId,
+        include: {
+          user: true,
         },
-      },
-      include: {
-        user: true,
-      },
-    });
+      });
 
-    const tasks = await this.prisma.task.findMany({
-      where: {
-        date: {
-          gte: startOfDay,
-          lte: endOfDay,
+      const tasks = await this.prisma.task.findMany({
+        where: {
+          date: {
+            gte: startOfDay,
+            lte: endOfDay,
+          },
+          user: {
+            companyId,
+          },
         },
-        user: {
-          companyId,
+        include: {
+          user: true,
         },
-      },
-      include: {
-        user: true,
-      },
-    });
+      });
 
-    const reportData = {
-      date: date.toISOString().split('T')[0],
-      totalEmployees: attendanceRecords.length,
-      totalTasksCompleted: tasks.length,
-      totalHoursWorked: tasks.reduce((sum, task) => sum + task.duration, 0),
-      attendanceRecords: attendanceRecords.map((record) => ({
-        employeeName: record.user.name,
-        clockIn: record.clockInAt,
-        clockOut: record.clockOutAt,
-        note: record.note,
-      })),
-      tasks: tasks.map((task) => ({
-        employeeName: task.user.name,
-        title: task.title,
-        description: task.description,
-        duration: task.duration,
-      })),
-    };
+      const reportData = {
+        date: date.toISOString().split('T')[0],
+        totalEmployees: attendanceRecords.length,
+        totalTasksCompleted: tasks.length,
+        totalHoursWorked: tasks.reduce((sum, task) => sum + task.duration, 0),
+        attendanceRecords: attendanceRecords.map((record) => ({
+          employeeName: record.user.name,
+          clockIn: record.clockInAt,
+          clockOut: record.clockOutAt,
+          note: record.note,
+        })),
+        tasks: tasks.map((task) => ({
+          employeeName: task.user.name,
+          title: task.title,
+          description: task.description,
+          duration: task.duration,
+        })),
+      };
 
-    // Save the report
-    await this.prisma.dailyReport.upsert({
-      where: {
-        companyId_date: {
+      // Save the report
+      await this.prisma.dailyReport.upsert({
+        where: {
+          companyId_date: {
+            companyId,
+            date: startOfDay,
+          },
+        },
+        update: {
+          data: reportData,
+        },
+        create: {
           companyId,
           date: startOfDay,
+          data: reportData,
         },
-      },
-      update: {
-        data: reportData,
-      },
-      create: {
-        companyId,
-        date: startOfDay,
-        data: reportData,
-      },
-    });
+      });
 
-    return successResponse(
-      reportData,
-      'Daily report generated successfully',
-      200,
-    );
+      return successResponse(
+        reportData,
+        'Daily report generated successfully',
+        200,
+      );
+    } catch (error) {
+      handlePrismaError(error);
+    }
   }
 }
