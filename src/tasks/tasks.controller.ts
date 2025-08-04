@@ -6,6 +6,7 @@ import {
   Patch,
   Param,
   Delete,
+  Put,
   UseGuards,
   Query,
   ParseIntPipe,
@@ -39,10 +40,20 @@ export class TasksController {
     @CurrentUser() user: User,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
     const start = startDate ? new Date(startDate) : undefined;
     const end = endDate ? new Date(endDate) : undefined;
+    const pageNum = page ? parseInt(page) : 1;
+    const limitNum = limit ? parseInt(limit) : 10;
     return this.tasksService.findByUser(user, start, end);
+  }
+
+  @Get('my-tasks/stats')
+  @Roles(Role.EMPLOYEE, Role.COMPANY_ADMIN, Role.SUPER_ADMIN)
+  getMyTaskStats(@CurrentUser() user: User) {
+    return this.tasksService.getTaskStats(user.id);
   }
 
   @Get(':id')
@@ -59,6 +70,16 @@ export class TasksController {
     @CurrentUser() user: User,
   ) {
     return this.tasksService.update(user, id, updateTaskDto);
+  }
+
+  @Put(':id/status')
+  @Roles(Role.EMPLOYEE, Role.COMPANY_ADMIN, Role.SUPER_ADMIN)
+  updateTaskStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() statusDto: { status: string },
+    @CurrentUser() user: User,
+  ) {
+    return this.tasksService.updateTaskStatus(user, id, statusDto.status);
   }
 
   @Delete(':id')

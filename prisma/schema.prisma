@@ -16,6 +16,7 @@ model User {
   email      String   @unique
   password   String
   role       Role
+  timezone   String?
   company    Company? @relation(fields: [companyId], references: [id])
   companyId  Int?
   tasks      Task[]

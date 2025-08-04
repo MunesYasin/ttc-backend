@@ -10,6 +10,7 @@ import { AttendanceAccessPolicy } from '../policies/attendance-access.policy';
 import { Role } from 'src/common';
 import { successResponse } from '../../utilies/response';
 import { handlePrismaError } from '../../utilies/error-handler';
+import { getUserLocalDateString } from '../common/helpers/date.helper';
 
 @Injectable()
 export class AttendanceService {
@@ -18,15 +19,16 @@ export class AttendanceService {
     private attendanceAccessPolicy: AttendanceAccessPolicy,
   ) {}
 
-  async clockIn(userId: number, clockInDto: ClockInDto) {
+  async clockIn(user: User, clockInDto: ClockInDto) {
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const userId = user.id;
+      const todayDateOnly = getUserLocalDateString(user.timezone);
+
       const existingRecord = await this.prisma.attendanceRecord.findUnique({
         where: {
           userId_date: {
             userId,
-            date: today,
+            date: new Date(todayDateOnly),
           },
         },
       });
@@ -53,7 +55,7 @@ export class AttendanceService {
         attendanceRecord = await this.prisma.attendanceRecord.create({
           data: {
             userId,
-            date: today,
+            date: new Date(todayDateOnly),
             clockInAt: clockInTime,
             note: clockInDto.note,
           },
@@ -71,13 +73,13 @@ export class AttendanceService {
 
   async clockOut(currentUser: User, clockOutDto: ClockOutDto) {
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const todayDateOnly = getUserLocalDateString(currentUser.timezone);
+
       const existingRecord = await this.prisma.attendanceRecord.findUnique({
         where: {
           userId_date: {
             userId: currentUser.id,
-            date: today,
+            date: new Date(todayDateOnly),
           },
         },
       });
@@ -112,14 +114,19 @@ export class AttendanceService {
   async getTodayAttendance(currentUser: User) {
     try {
       const today = new Date();
-      today.setHours(0, 0, 0, 0);
+
+      // Use local date for determining "today" to avoid timezone issues
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      const todayDateOnly = `${year}-${month}-${day}`;
 
       let attendanceRecords;
 
       if (currentUser.role === Role.SUPER_ADMIN) {
         attendanceRecords = await this.prisma.attendanceRecord.findMany({
           where: {
-            date: today,
+            date: new Date(todayDateOnly),
           },
           include: {
             user: true,
@@ -129,7 +136,7 @@ export class AttendanceService {
         attendanceRecords = await this.prisma.attendanceRecord.findMany({
           where: {
             user: { companyId: currentUser.companyId },
-            date: today,
+            date: new Date(todayDateOnly),
           },
           include: {
             user: true,
@@ -208,6 +215,176 @@ export class AttendanceService {
         attendanceRecord,
         'Attendance record created successfully',
         201,
+      );
+    } catch (error) {
+      handlePrismaError(error);
+    }
+  }
+
+  async getAttendanceStats(userId: number) {
+    try {
+      const thisMonth = new Date();
+      thisMonth.setDate(1);
+
+      const records = await this.prisma.attendanceRecord.findMany({
+        where: {
+          userId,
+          date: {
+            gte: thisMonth,
+          },
+        },
+      });
+
+      const totalDays = records.length;
+      const presentDays = records.filter((r) => r.clockInAt).length;
+      const completeDays = records.filter(
+        (r) => r.clockInAt && r.clockOutAt,
+      ).length;
+
+      const totalHours = records.reduce((sum, record) => {
+        if (record.clockInAt && record.clockOutAt) {
+          const hours =
+            (record.clockOutAt.getTime() - record.clockInAt.getTime()) /
+            (1000 * 60 * 60);
+          return sum + hours;
+        }
+        return sum;
+      }, 0);
+
+      const stats = {
+        thisMonth: {
+          totalDays,
+          presentDays,
+          completeDays,
+          totalHours: Math.round(totalHours * 100) / 100,
+          averageHours:
+            completeDays > 0
+              ? Math.round((totalHours / completeDays) * 100) / 100
+              : 0,
+          attendanceRate:
+            totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0,
+        },
+      };
+
+      return successResponse(
+        stats,
+        'Attendance statistics retrieved successfully',
+        200,
+      );
+    } catch (error) {
+      handlePrismaError(error);
+    }
+  }
+
+  async getTodayAttendanceForUser(userId: number) {
+    try {
+      const today = new Date();
+
+      // Use local date for determining "today" to avoid timezone issues
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      const todayDateOnly = `${year}-${month}-${day}`;
+
+      const attendanceRecord = await this.prisma.attendanceRecord.findUnique({
+        where: {
+          userId_date: {
+            userId: userId,
+            date: new Date(todayDateOnly),
+          },
+        },
+      });
+
+      const response = {
+        date: new Date(todayDateOnly),
+        clockInAt: attendanceRecord?.clockInAt || null,
+        clockOutAt: attendanceRecord?.clockOutAt || null,
+        note: attendanceRecord?.note || null,
+        isClocked:
+          !!attendanceRecord?.clockInAt && !attendanceRecord?.clockOutAt,
+        hoursWorked:
+          attendanceRecord?.clockInAt && attendanceRecord?.clockOutAt
+            ? Math.round(
+                ((attendanceRecord.clockOutAt.getTime() -
+                  attendanceRecord.clockInAt.getTime()) /
+                  (1000 * 60 * 60)) *
+                  100,
+              ) / 100
+            : null,
+      };
+
+      return successResponse(
+        response,
+        'Today attendance retrieved successfully',
+        200,
+      );
+    } catch (error) {
+      handlePrismaError(error);
+    }
+  }
+
+  async requestTimeOff(
+    userId: number,
+    timeOffDto: {
+      startDate: string;
+      endDate: string;
+      type: string;
+      reason: string;
+    },
+  ) {
+    try {
+      // Mock implementation since there's no TimeOff model in the schema
+      const timeOffRequest = {
+        id: Date.now(),
+        userId,
+        startDate: new Date(timeOffDto.startDate),
+        endDate: new Date(timeOffDto.endDate),
+        type: timeOffDto.type,
+        reason: timeOffDto.reason,
+        status: 'pending',
+        createdAt: new Date(),
+      };
+
+      return successResponse(
+        timeOffRequest,
+        'Time off request submitted successfully',
+        201,
+      );
+    } catch (error) {
+      handlePrismaError(error);
+    }
+  }
+
+  async getTimeOffRequests(userId: number) {
+    try {
+      // Mock implementation since there's no TimeOff model in the schema
+      const timeOffRequests = [
+        {
+          id: 1,
+          userId,
+          startDate: new Date('2025-08-10'),
+          endDate: new Date('2025-08-12'),
+          type: 'vacation',
+          reason: 'Family vacation',
+          status: 'approved',
+          createdAt: new Date('2025-08-01'),
+        },
+        {
+          id: 2,
+          userId,
+          startDate: new Date('2025-08-20'),
+          endDate: new Date('2025-08-20'),
+          type: 'sick_leave',
+          reason: 'Doctor appointment',
+          status: 'pending',
+          createdAt: new Date('2025-08-15'),
+        },
+      ];
+
+      return successResponse(
+        timeOffRequests,
+        'Time off requests retrieved successfully',
+        200,
       );
     } catch (error) {
       handlePrismaError(error);

@@ -1,6 +1,15 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  Res,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/auth.dto';
+import { Response } from 'express';
+import { successResponse } from 'utilies/response';
 
 @Controller('auth')
 export class AuthController {
@@ -8,7 +17,34 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  async login(
+    @Body() loginDto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { access_token, user } = await this.authService.login(loginDto);
+
+    // Set the token as HTTP-only cookie
+    res.cookie('access_token', access_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production', // true in production (HTTPS)
+      sameSite: 'lax', // or 'strict' / 'none'
+      maxAge: 1000 * 60 * 60 * 24, // 1 day
+    });
+
+    return successResponse(user, 'Login successful', 200);
+  }
+
+  @Post('logout')
+  logout(@Res({ passthrough: true }) res: Response) {
+    res.clearCookie('access_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    });
+
+    return {
+      success: true,
+      message: 'Logged out successfully',
+    };
   }
 }

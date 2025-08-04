@@ -25,7 +25,7 @@ async function main() {
   let company1 = await prisma.company.findFirst({
     where: { name: 'Tech Solutions Inc.' },
   });
-  
+
   if (!company1) {
     company1 = await prisma.company.create({
       data: {
@@ -39,7 +39,7 @@ async function main() {
   let company2 = await prisma.company.findFirst({
     where: { name: 'Creative Marketing Agency' },
   });
-  
+
   if (!company2) {
     company2 = await prisma.company.create({
       data: {
@@ -164,7 +164,6 @@ async function main() {
 
   // Create sample attendance records for today
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
 
   const attendanceRecords = await Promise.all([
     // Tech Solutions employees

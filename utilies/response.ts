@@ -18,3 +18,23 @@ export const errorResponse = (
   data,
   message,
 });
+
+export const paginationResponse = (
+  data: any[],
+  total: number,
+  page: number,
+  limit: number,
+  message = 'Data retrieved successfully',
+) => ({
+  status: 200,
+  data,
+  message,
+  pagination: {
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+    hasNext: page * limit < total,
+    hasPrev: page > 1,
+  },
+});

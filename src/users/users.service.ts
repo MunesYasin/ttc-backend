@@ -155,4 +155,64 @@ export class UsersService {
       handlePrismaError(error);
     }
   }
+
+  async getProfile(userId: number) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          company: {
+            select: {
+              id: true,
+              name: true,
+              industry: true,
+            },
+          },
+        },
+      });
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      // Remove password from response
+      const { password, ...profile } = user;
+
+      return successResponse(profile, 'Profile retrieved successfully', 200);
+    } catch (error) {
+      handlePrismaError(error);
+    }
+  }
+
+  async updateProfile(userId: number, updateUserDto: UpdateUserDto) {
+    try {
+      const updateData: any = { ...updateUserDto };
+
+      // Hash password if provided
+      if (updateUserDto.password) {
+        updateData.password = await bcrypt.hash(updateUserDto.password, 10);
+      }
+
+      const updatedUser = await this.prisma.user.update({
+        where: { id: userId },
+        data: updateData,
+        include: {
+          company: {
+            select: {
+              id: true,
+              name: true,
+              industry: true,
+            },
+          },
+        },
+      });
+
+      // Remove password from response
+      const { password, ...profile } = updatedUser;
+
+      return successResponse(profile, 'Profile updated successfully', 200);
+    } catch (error) {
+      handlePrismaError(error);
+    }
+  }
 }

@@ -27,6 +27,10 @@ export class CreateUserDto {
   @Transform(({ value }) => (value ? parseInt(value as string, 10) : undefined))
   @IsNumber()
   companyId?: number;
+
+  @IsOptional()
+  @IsString()
+  timezone?: string; // Optional timezone field for user
 }
 
 export class UpdateUserDto {

@@ -10,16 +10,17 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { User } from '@prisma/client';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('attendance')
-@UseGuards(RolesGuard)
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 export class AttendanceController {
   constructor(private readonly attendanceService: AttendanceService) {}
 
   @Post('clock-in')
   @Roles(Role.EMPLOYEE)
   clockIn(@CurrentUser() user: User, @Body() clockInDto: ClockInDto) {
-    return this.attendanceService.clockIn(user.id, clockInDto);
+    return this.attendanceService.clockIn(user, clockInDto);
   }
 
   @Post('clock-out')
@@ -40,10 +41,47 @@ export class AttendanceController {
     @CurrentUser() user: User,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
     const start = startDate ? new Date(startDate) : undefined;
     const end = endDate ? new Date(endDate) : undefined;
+    const pageNum = page ? parseInt(page) : 1;
+    const limitNum = limit ? parseInt(limit) : 10;
     return this.attendanceService.getUserAttendance(user, start, end);
+  }
+
+  @Get('my-stats')
+  @Roles(Role.EMPLOYEE)
+  getMyAttendanceStats(@CurrentUser() user: User) {
+    return this.attendanceService.getAttendanceStats(user.id);
+  }
+
+  @Get('my-today')
+  @Roles(Role.EMPLOYEE)
+  getMyTodayAttendance(@CurrentUser() user: User) {
+    return this.attendanceService.getTodayAttendanceForUser(user.id);
+  }
+
+  @Post('time-off')
+  @Roles(Role.EMPLOYEE)
+  requestTimeOff(
+    @CurrentUser() user: User,
+    @Body()
+    timeOffDto: {
+      startDate: string;
+      endDate: string;
+      type: string;
+      reason: string;
+    },
+  ) {
+    return this.attendanceService.requestTimeOff(user.id, timeOffDto);
+  }
+
+  @Get('time-off')
+  @Roles(Role.EMPLOYEE)
+  getTimeOffRequests(@CurrentUser() user: User) {
+    return this.attendanceService.getTimeOffRequests(user.id);
   }
 
   @Post('create')

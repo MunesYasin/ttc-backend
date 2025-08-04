@@ -59,4 +59,19 @@ export class UsersController {
   remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
     return this.usersService.remove(id, user);
   }
+
+  @Get('profile')
+  @Roles(Role.EMPLOYEE, Role.COMPANY_ADMIN, Role.SUPER_ADMIN)
+  getProfile(@CurrentUser() user: User) {
+    return this.usersService.getProfile(user.id);
+  }
+
+  @Patch('profile')
+  @Roles(Role.EMPLOYEE, Role.COMPANY_ADMIN, Role.SUPER_ADMIN)
+  updateProfile(
+    @CurrentUser() user: User,
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
+    return this.usersService.updateProfile(user.id, updateUserDto);
+  }
 }

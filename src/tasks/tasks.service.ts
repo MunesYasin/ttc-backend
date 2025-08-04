@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
 import type { User } from '@prisma/client';
@@ -178,6 +178,81 @@ export class TasksService {
       return successResponse(
         tasks,
         'Company tasks retrieved successfully',
+        200,
+      );
+    } catch (error) {
+      handlePrismaError(error);
+    }
+  }
+
+  async getTaskStats(userId: number) {
+    try {
+      const tasks = await this.prisma.task.findMany({
+        where: { userId },
+        select: {
+          duration: true,
+          date: true,
+        },
+      });
+
+      const totalTasks = tasks.length;
+      const totalHours = tasks.reduce((sum, task) => sum + task.duration, 0);
+      const averageHours = totalTasks > 0 ? totalHours / totalTasks : 0;
+
+      // Get this month's tasks
+      const thisMonth = new Date();
+      thisMonth.setDate(1);
+
+      const thisMonthTasks = tasks.filter((task) => task.date >= thisMonth);
+      const thisMonthHours = thisMonthTasks.reduce(
+        (sum, task) => sum + task.duration,
+        0,
+      );
+
+      const stats = {
+        totalTasks,
+        totalHours: Math.round(totalHours * 100) / 100,
+        averageHours: Math.round(averageHours * 100) / 100,
+        thisMonthTasks: thisMonthTasks.length,
+        thisMonthHours: Math.round(thisMonthHours * 100) / 100,
+      };
+
+      return successResponse(
+        stats,
+        'Task statistics retrieved successfully',
+        200,
+      );
+    } catch (error) {
+      handlePrismaError(error);
+    }
+  }
+
+  async updateTaskStatus(user: User, id: number, status: string) {
+    try {
+      // First verify the user can access this task
+      const existingTask = await this.taskAccessPolicy.ensureUserCanAccessTask(
+        user,
+        id,
+      );
+      if (!existingTask) {
+        throw new NotFoundException('Task not found');
+      }
+
+      // Note: Since the Task model doesn't have a status field in the current schema,
+      // we'll update the title to include status for now
+      const updatedTask = await this.prisma.task.update({
+        where: { id },
+        data: {
+          title: `[${status.toUpperCase()}] ${existingTask.title.replace(/^\[(PENDING|IN_PROGRESS|COMPLETED)\]\s*/, '')}`,
+        },
+        include: {
+          user: true,
+        },
+      });
+
+      return successResponse(
+        updatedTask,
+        'Task status updated successfully',
         200,
       );
     } catch (error) {
