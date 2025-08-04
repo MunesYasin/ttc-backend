@@ -11,6 +11,11 @@ import { Role } from 'src/common';
 import { successResponse } from '../../utilies/response';
 import { handlePrismaError } from '../../utilies/error-handler';
 import { getUserLocalDateString } from '../common/helpers/date.helper';
+import {
+  calculateSkip,
+  createPaginatedResult,
+  normalizePaginationParams,
+} from '../common/helpers/pagination.helper';
 
 @Injectable()
 export class AttendanceService {
@@ -154,8 +159,18 @@ export class AttendanceService {
     }
   }
 
-  async getUserAttendance(currentUser: User, startDate?: Date, endDate?: Date) {
+  async getUserAttendance(
+    currentUser: User,
+    startDate?: Date,
+    endDate?: Date,
+    page: number = 1,
+    limit: number = 10,
+  ) {
     try {
+      // Normalize pagination parameters
+      const { page: normalizedPage, limit: normalizedLimit } =
+        normalizePaginationParams(page, limit);
+
       const where: any = { userId: currentUser.id };
       if (startDate || endDate) {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
@@ -166,6 +181,25 @@ export class AttendanceService {
         if (endDate) where.date.lte = endDate;
       }
 
+      // Calculate pagination skip
+      const skip = calculateSkip(normalizedPage, normalizedLimit);
+
+      // Get total count for pagination info
+      const totalRecords = await this.prisma.attendanceRecord.count({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        where,
+      });
+
+      // Debug logging to help identify the issue
+      console.log('getUserAttendance Debug:', {
+        userId: currentUser.id,
+        normalizedPage,
+        normalizedLimit,
+        skip,
+        totalRecords,
+        where: JSON.stringify(where),
+      });
+
       const attendanceRecords = await this.prisma.attendanceRecord.findMany({
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         where,
@@ -175,10 +209,45 @@ export class AttendanceService {
         orderBy: {
           date: 'desc',
         },
+        skip,
+        take: normalizedLimit,
       });
 
+      console.log('Query returned records:', attendanceRecords.length);
+      if (attendanceRecords.length === 0 && totalRecords > 0) {
+        console.log('WARNING: Empty result but totalRecords > 0. Possible pagination issue.');
+      }
+
+      // Add hoursWorked to each record and calculate total work hours
+      const recordsWithHours = attendanceRecords.map((record) => {
+        const hoursWorked =
+          record.clockInAt && record.clockOutAt
+            ? Math.round(
+                ((record.clockOutAt.getTime() - record.clockInAt.getTime()) /
+                  (1000 * 60 * 60)) *
+                  100,
+              ) / 100
+            : null;
+
+        return {
+          ...record,
+          hoursWorked,
+        };
+      });
+
+      // Create paginated result
+      const paginatedResult = createPaginatedResult(
+        recordsWithHours,
+        normalizedPage,
+        normalizedLimit,
+        totalRecords,
+      );
+
       return successResponse(
-        attendanceRecords,
+        {
+          records: paginatedResult.data,
+          pagination: paginatedResult.pagination,
+        },
         'User attendance retrieved successfully',
         200,
       );
@@ -223,25 +292,30 @@ export class AttendanceService {
 
   async getAttendanceStats(userId: number) {
     try {
-      const thisMonth = new Date();
-      thisMonth.setDate(1);
+      const thisYear = new Date();
+      thisYear.setMonth(0, 1); // January 1st
+      thisYear.setHours(0, 0, 0, 0);
 
-      const records = await this.prisma.attendanceRecord.findMany({
-        where: {
-          userId,
-          date: {
-            gte: thisMonth,
+      // Get monthly and yearly records
+      const [yearlyRecords] = await Promise.all([
+        this.prisma.attendanceRecord.findMany({
+          where: {
+            userId,
+            date: {
+              gte: thisYear,
+            },
           },
-        },
-      });
+        }),
+      ]);
 
-      const totalDays = records.length;
-      const presentDays = records.filter((r) => r.clockInAt).length;
-      const completeDays = records.filter(
+      // Yearly calculations
+      const yearlyTotalDays = yearlyRecords.length;
+      const yearlyPresentDays = yearlyRecords.filter((r) => r.clockInAt).length;
+      const yearlyCompleteDays = yearlyRecords.filter(
         (r) => r.clockInAt && r.clockOutAt,
       ).length;
 
-      const totalHours = records.reduce((sum, record) => {
+      const yearlyTotalHours = yearlyRecords.reduce((sum, record) => {
         if (record.clockInAt && record.clockOutAt) {
           const hours =
             (record.clockOutAt.getTime() - record.clockInAt.getTime()) /
@@ -251,18 +325,58 @@ export class AttendanceService {
         return sum;
       }, 0);
 
+      // Calculate working days in current month and year
+      const currentDate = new Date();
+
+      // Calculate working days (assuming 5-day work week, excluding weekends)
+      const getWorkingDays = (startDate: Date, endDate: Date) => {
+        let workingDays = 0;
+        const current = new Date(startDate);
+
+        while (current <= endDate) {
+          const dayOfWeek = current.getDay();
+          // Count Monday (1) to Friday (5) as working days
+          if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+            workingDays++;
+          }
+          current.setDate(current.getDate() + 1);
+        }
+        return workingDays;
+      };
+
+      const yearlyWorkingDays = getWorkingDays(thisYear, currentDate);
+
+      // Calculate absence days
+      const yearlyAbsenceDays = yearlyWorkingDays - yearlyPresentDays;
+
       const stats = {
-        thisMonth: {
-          totalDays,
-          presentDays,
-          completeDays,
-          totalHours: Math.round(totalHours * 100) / 100,
+        thisYear: {
+          totalDays: yearlyTotalDays,
+          presentDays: yearlyPresentDays,
+          completeDays: yearlyCompleteDays,
+          absenceDays: Math.max(0, yearlyAbsenceDays),
+          workingDays: yearlyWorkingDays,
+          totalHours: Math.round(yearlyTotalHours * 100) / 100,
           averageHours:
-            completeDays > 0
-              ? Math.round((totalHours / completeDays) * 100) / 100
+            yearlyCompleteDays > 0
+              ? Math.round((yearlyTotalHours / yearlyCompleteDays) * 100) / 100
               : 0,
           attendanceRate:
-            totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0,
+            yearlyWorkingDays > 0
+              ? Math.round((yearlyPresentDays / yearlyWorkingDays) * 100)
+              : 0,
+          absenceRate:
+            yearlyWorkingDays > 0
+              ? Math.round(
+                  (Math.max(0, yearlyAbsenceDays) / yearlyWorkingDays) * 100,
+                )
+              : 0,
+          averageHoursPerMonth:
+            yearlyCompleteDays > 0
+              ? Math.round(
+                  (yearlyTotalHours / (currentDate.getMonth() + 1)) * 100,
+                ) / 100
+              : 0,
         },
       };
 

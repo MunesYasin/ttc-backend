@@ -11,6 +11,7 @@ import { Role } from '../common/enums/role.enum';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { User } from '@prisma/client';
 import { AuthGuard } from '@nestjs/passport';
+import { normalizePaginationParams } from '../common/helpers/pagination.helper';
 
 @Controller('attendance')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -46,9 +47,18 @@ export class AttendanceController {
   ) {
     const start = startDate ? new Date(startDate) : undefined;
     const end = endDate ? new Date(endDate) : undefined;
-    const pageNum = page ? parseInt(page) : 1;
-    const limitNum = limit ? parseInt(limit) : 10;
-    return this.attendanceService.getUserAttendance(user, start, end);
+
+    // Use pagination helper to normalize parameters
+    const { page: normalizedPage, limit: normalizedLimit } =
+      normalizePaginationParams(page, limit);
+
+    return this.attendanceService.getUserAttendance(
+      user,
+      start,
+      end,
+      normalizedPage,
+      normalizedLimit,
+    );
   }
 
   @Get('my-stats')
