@@ -18,9 +18,10 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { User } from '@prisma/client';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('tasks')
-@UseGuards(RolesGuard)
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 
@@ -47,7 +48,7 @@ export class TasksController {
     const end = endDate ? new Date(endDate) : undefined;
     const pageNum = page ? parseInt(page) : 1;
     const limitNum = limit ? parseInt(limit) : 10;
-    return this.tasksService.findByUser(user, start, end);
+    return this.tasksService.findByUser(user, start, end, pageNum, limitNum);
   }
 
   @Get('my-tasks/stats')

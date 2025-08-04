@@ -16,9 +16,10 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { User } from '@prisma/client';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('companies')
-@UseGuards(RolesGuard)
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 export class CompaniesController {
   constructor(private readonly companiesService: CompaniesService) {}
 
@@ -32,6 +33,12 @@ export class CompaniesController {
   @Roles(Role.SUPER_ADMIN)
   findAll() {
     return this.companiesService.findAll();
+  }
+
+  @Get('my-company')
+  @Roles(Role.COMPANY_ADMIN)
+  getMyCompany(@CurrentUser() user: User) {
+    return this.companiesService.getMyCompany(user);
   }
 
   @Get(':id')

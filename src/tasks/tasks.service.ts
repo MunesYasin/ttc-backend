@@ -6,6 +6,11 @@ import { TaskAccessPolicy } from '../policies/task-access.policy';
 import { Role } from 'src/common';
 import { successResponse } from '../../utilies/response';
 import { handlePrismaError } from 'utilies/error-handler';
+import {
+  calculateSkip,
+  createPaginatedResult,
+  normalizePaginationParams,
+} from '../common/helpers/pagination.helper';
 
 @Injectable()
 export class TasksService {
@@ -35,8 +40,18 @@ export class TasksService {
     }
   }
 
-  async findByUser(currentUser: User, startDate?: Date, endDate?: Date) {
+  async findByUser(
+    currentUser: User,
+    startDate?: Date,
+    endDate?: Date,
+    page: number = 1,
+    limit: number = 10,
+  ) {
     try {
+      // Normalize pagination parameters
+      const { page: normalizedPage, limit: normalizedLimit } =
+        normalizePaginationParams(page, limit);
+
       const where: any = {};
 
       if (currentUser.role === Role.EMPLOYEE) {
@@ -59,6 +74,15 @@ export class TasksService {
         if (endDate) where.date.lte = endDate;
       }
 
+      // Calculate pagination skip
+      const skip = calculateSkip(normalizedPage, normalizedLimit);
+
+      // Get total count for pagination info
+      const totalRecords = await this.prisma.task.count({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        where,
+      });
+
       const tasks = await this.prisma.task.findMany({
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         where,
@@ -68,9 +92,26 @@ export class TasksService {
         orderBy: {
           date: 'desc',
         },
+        skip,
+        take: normalizedLimit,
       });
 
-      return successResponse(tasks, 'Tasks retrieved successfully', 200);
+      // Create paginated result
+      const paginatedResult = createPaginatedResult(
+        tasks,
+        normalizedPage,
+        normalizedLimit,
+        totalRecords,
+      );
+
+      return successResponse(
+        {
+          tasks: paginatedResult.data,
+          pagination: paginatedResult.pagination,
+        },
+        'Tasks retrieved successfully',
+        200,
+      );
     } catch (error) {
       handlePrismaError(error);
     }

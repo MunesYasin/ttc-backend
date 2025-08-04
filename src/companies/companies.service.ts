@@ -63,6 +63,76 @@ export class CompaniesService {
     }
   }
 
+  async getMyCompany(user: User) {
+    try {
+      if (!user.companyId) {
+        throw new Error('User is not associated with any company');
+      }
+
+      // Get company details with employee count
+      const company = await this.prisma.company.findUnique({
+        where: {
+          id: user.companyId,
+        },
+        include: {
+          users: {
+            where: {
+              role: 'EMPLOYEE',
+            },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+              createdAt: true,
+            },
+          },
+          _count: {
+            select: {
+              users: {
+                where: {
+                  role: 'EMPLOYEE',
+                },
+              },
+              reports: true,
+            },
+          },
+        },
+      });
+
+      if (!company) {
+        throw new Error('Company not found');
+      }
+
+      const companyDetails = {
+        id: company.id,
+        name: company.name,
+        industry: company.industry,
+        logoUrl: company.logoUrl,
+        createdAt: company.createdAt,
+        updatedAt: company.updatedAt,
+        totalEmployees: company._count.users,
+        totalReports: company._count.reports,
+        statistics: {
+          employeeCount: company._count.users,
+          reportsGenerated: company._count.reports,
+          companyAge: Math.floor(
+            (new Date().getTime() - company.createdAt.getTime()) /
+              (1000 * 60 * 60 * 24),
+          ), // days since creation
+        },
+      };
+
+      return successResponse(
+        companyDetails,
+        'Company details retrieved successfully',
+        200,
+      );
+    } catch (error) {
+      handlePrismaError(error);
+    }
+  }
+
   async update(id: number, updateCompanyDto: UpdateCompanyDto, user: User) {
     try {
       // Use ensure method which already validates access and fetches company

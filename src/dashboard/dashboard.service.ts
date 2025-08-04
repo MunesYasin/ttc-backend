@@ -390,4 +390,324 @@ export class DashboardService {
       handlePrismaError(error);
     }
   }
+
+  async getCompanyAdminDashboard(user: User) {
+    try {
+      const companyId = user.companyId;
+      const today = new Date();
+      const todayDateOnly = getUserLocalDateString(user.timezone);
+
+      // Calculate current week (Sunday to Thursday)
+      const currentWeekStart = new Date(today);
+      currentWeekStart.setDate(today.getDate() - today.getDay()); // Go to Sunday
+      currentWeekStart.setHours(0, 0, 0, 0);
+
+      const currentWeekEnd = new Date(currentWeekStart);
+      currentWeekEnd.setDate(currentWeekStart.getDate() + 4); // Sunday + 4 = Thursday
+      currentWeekEnd.setHours(23, 59, 59, 999);
+
+      // Get total employees in the company
+      const totalEmployees = await this.prisma.user.count({
+        where: {
+          companyId,
+          role: 'EMPLOYEE',
+        },
+      });
+
+      // Get today's attendance records for the company
+      const todayAttendanceRecords =
+        await this.prisma.attendanceRecord.findMany({
+          where: {
+            date: new Date(todayDateOnly),
+            user: {
+              companyId,
+            },
+          },
+          include: {
+            user: true,
+          },
+        });
+
+      const todayAttendanceCount = todayAttendanceRecords.filter(
+        (record) => record.clockInAt,
+      ).length;
+
+      // Get weekly tasks for the company
+      const weeklyTasks = await this.prisma.task.count({
+        where: {
+          date: {
+            gte: currentWeekStart,
+            lte: currentWeekEnd,
+          },
+          user: {
+            companyId,
+          },
+        },
+      });
+
+      // Get weekly total work hours
+      const weeklyAttendanceRecords =
+        await this.prisma.attendanceRecord.findMany({
+          where: {
+            date: {
+              gte: currentWeekStart,
+              lte: currentWeekEnd,
+            },
+            user: {
+              companyId,
+            },
+            clockInAt: {
+              not: null,
+            },
+            clockOutAt: {
+              not: null,
+            },
+          },
+        });
+
+      const weeklyTotalHours = weeklyAttendanceRecords.reduce(
+        (total, record) => {
+          if (record.clockInAt && record.clockOutAt) {
+            const hours =
+              (record.clockOutAt.getTime() - record.clockInAt.getTime()) /
+              (1000 * 60 * 60);
+            return total + hours;
+          }
+          return total;
+        },
+        0,
+      );
+
+      // Calculate attendance rate
+      const attendanceRate =
+        totalEmployees > 0
+          ? Math.round((todayAttendanceCount / totalEmployees) * 100)
+          : 0;
+
+      // Get week date range for display
+      const weekStartFormatted = currentWeekStart.toLocaleDateString();
+      const weekEndFormatted = currentWeekEnd.toLocaleDateString();
+
+      const dashboardStats = {
+        company: {
+          totalEmployees,
+          todayAttendance: {
+            present: todayAttendanceCount,
+            total: totalEmployees,
+            rate: attendanceRate,
+          },
+        },
+        thisWeek: {
+          dateRange: `${weekStartFormatted} - ${weekEndFormatted}`,
+          tasks: weeklyTasks,
+          totalHours: Math.round(weeklyTotalHours * 100) / 100,
+          averageHoursPerEmployee:
+            totalEmployees > 0
+              ? Math.round((weeklyTotalHours / totalEmployees) * 100) / 100
+              : 0,
+        },
+        summary: {
+          totalEmployees,
+          todayPresentEmployees: todayAttendanceCount,
+          weeklyTasks,
+          weeklyTotalHours: Math.round(weeklyTotalHours * 100) / 100,
+        },
+      };
+
+      return successResponse(
+        dashboardStats,
+        'Company admin dashboard retrieved successfully',
+        200,
+      );
+    } catch (error) {
+      handlePrismaError(error);
+    }
+  }
+
+  async getTopPerformersToday(user: User) {
+    try {
+      const companyId = user.companyId;
+      const todayDateOnly = getUserLocalDateString(user.timezone);
+
+      // Get today's attendance records for all employees in the company
+      const todayAttendanceRecords =
+        await this.prisma.attendanceRecord.findMany({
+          where: {
+            date: new Date(todayDateOnly),
+            user: {
+              companyId,
+              role: 'EMPLOYEE',
+            },
+            clockInAt: {
+              not: null,
+            },
+            clockOutAt: {
+              not: null,
+            },
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        });
+
+      // Calculate hours worked for each employee and sort by highest hours
+      const employeesWithHours = todayAttendanceRecords
+        .map((record) => {
+          const hoursWorked =
+            record.clockInAt && record.clockOutAt
+              ? Math.round(
+                  ((record.clockOutAt.getTime() - record.clockInAt.getTime()) /
+                    (1000 * 60 * 60)) *
+                    100,
+                ) / 100
+              : 0;
+
+          return {
+            employee: {
+              id: record.user.id,
+              name: record.user.name,
+              email: record.user.email,
+            },
+            attendance: {
+              clockInAt: record.clockInAt,
+              clockOutAt: record.clockOutAt,
+              hoursWorked,
+              date: record.date,
+            },
+          };
+        })
+        .sort((a, b) => b.attendance.hoursWorked - a.attendance.hoursWorked)
+        .slice(0, 4); // Get top 4 performers
+
+      const topPerformers = {
+        date: new Date(todayDateOnly),
+        dateFormatted: new Date(todayDateOnly).toLocaleDateString(),
+        totalEmployeesWorked: todayAttendanceRecords.length,
+        topPerformers: employeesWithHours,
+        summary: {
+          highestHours:
+            employeesWithHours.length > 0
+              ? employeesWithHours[0].attendance.hoursWorked
+              : 0,
+          averageHours:
+            employeesWithHours.length > 0
+              ? Math.round(
+                  (employeesWithHours.reduce(
+                    (sum, emp) => sum + emp.attendance.hoursWorked,
+                    0,
+                  ) /
+                    employeesWithHours.length) *
+                    100,
+                ) / 100
+              : 0,
+        },
+      };
+
+      return successResponse(
+        topPerformers,
+        'Top performers retrieved successfully',
+        200,
+      );
+    } catch (error) {
+      handlePrismaError(error);
+    }
+  }
+
+  async getRecentCompanyTasks(user: User) {
+    try {
+      const companyId = user.companyId;
+
+      // Get the last 4 tasks for all employees in the company
+      const recentTasks = await this.prisma.task.findMany({
+        where: {
+          user: {
+            companyId,
+            role: 'EMPLOYEE',
+          },
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: 4,
+      });
+
+      const tasksWithDetails = recentTasks.map((task) => ({
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        duration: task.duration,
+        date: task.date,
+        createdAt: task.createdAt,
+        updatedAt: task.updatedAt,
+        employee: {
+          id: task.user.id,
+          name: task.user.name,
+          email: task.user.email,
+        },
+        timeAgo: this.getTimeAgo(task.createdAt),
+      }));
+
+      const recentTasksData = {
+        totalTasks: recentTasks.length,
+        tasks: tasksWithDetails,
+        summary: {
+          totalDuration: recentTasks.reduce(
+            (sum, task) => sum + task.duration,
+            0,
+          ),
+          averageDuration:
+            recentTasks.length > 0
+              ? Math.round(
+                  (recentTasks.reduce((sum, task) => sum + task.duration, 0) /
+                    recentTasks.length) *
+                    100,
+                ) / 100
+              : 0,
+          latestTaskDate:
+            recentTasks.length > 0 ? recentTasks[0].createdAt : null,
+        },
+      };
+
+      return successResponse(
+        recentTasksData,
+        'Recent company tasks retrieved successfully',
+        200,
+      );
+    } catch (error) {
+      handlePrismaError(error);
+    }
+  }
+
+  private getTimeAgo(date: Date): string {
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diffInSeconds < 60) {
+      return ` قبل ${diffInSeconds} ثواني`;
+    } else if (diffInSeconds < 3600) {
+      const minutes = Math.floor(diffInSeconds / 60);
+      return `قبل ${minutes} دقيقة`;
+    } else if (diffInSeconds < 86400) {
+      const hours = Math.floor(diffInSeconds / 3600);
+      return `قبل ${hours} ساعة`;
+    } else {
+      const days = Math.floor(diffInSeconds / 86400);
+      return `قبل ${days} يوم`;
+    }
+  }
 }
