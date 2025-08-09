@@ -16,12 +16,6 @@ export function errorResponse(
   message = 'Validation failed',
   statusCode = 400,
 ) {
-  throw new Error({
-    errors: errors.map((error) => ({
-      field: error.field,
-      message: error.errors.join(', '),
-    })),
-  });
   return {
     success: false,
     message,

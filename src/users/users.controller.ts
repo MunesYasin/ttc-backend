@@ -86,13 +86,13 @@ export class UsersController {
     return this.usersService.remove(id, user);
   }
 
-  @Get('profile')
+  @Get('get/profile')
   @Roles(Role.EMPLOYEE, Role.COMPANY_ADMIN, Role.SUPER_ADMIN)
   getProfile(@CurrentUser() user: User) {
     return this.usersService.getProfile(user.id);
   }
 
-  @Patch('profile')
+  @Patch('update/profile')
   @Roles(Role.EMPLOYEE, Role.COMPANY_ADMIN, Role.SUPER_ADMIN)
   updateProfile(
     @CurrentUser() user: User,

@@ -106,9 +106,16 @@ export class AttendanceService {
           note: clockOutDto.note || existingRecord.note,
         },
         include: {
-          user: true,
+          user: {
+            include: {
+              employeeRoles: true,
+            },
+          },
         },
       });
+
+      // Create random tasks based on employee role after clock out
+      await this.createRandomTasksForAttendance(attendanceRecord);
 
       return successResponse(attendanceRecord, 'Clock out successful', 200);
     } catch (error) {
@@ -437,6 +444,92 @@ export class AttendanceService {
     } catch (error) {
       handlePrismaError(error);
     }
+  }
+
+  private async createRandomTasksForAttendance(
+    attendanceRecord: any,
+  ): Promise<any[] | undefined> {
+    try {
+      // Get tasks available for this employee role
+      const roleTasks = await this.prisma.roleTasks.findMany({
+        where: {
+          employeeRolesId: attendanceRecord.user.employeeRolesId,
+        },
+      });
+
+      if (roleTasks.length === 0) {
+        console.log(
+          'No tasks found for employee role:',
+          attendanceRecord.user.employeeRolesId,
+        );
+        return;
+      }
+
+      // Calculate total work hours for this attendance record
+      const workHours =
+        attendanceRecord.clockInAt && attendanceRecord.clockOutAt
+          ? (attendanceRecord.clockOutAt.getTime() -
+              attendanceRecord.clockInAt.getTime()) /
+            (1000 * 60 * 60)
+          : 8; // Default to 8 hours if times are missing
+
+      // Generate 2-5 random tasks
+      const numberOfTasks = Math.floor(Math.random() * 4) + 2; // Random number between 2-5
+      const selectedTasks = this.getRandomTasks(roleTasks, numberOfTasks);
+
+      // Calculate remaining hours to distribute
+      // Each task has a minimum duration of 1 hour and maximum of 3 hours
+      const minDurationHours = 1; // 1 hour minimum
+      const maxDurationHours = 3; // 3 hours maximum
+
+      const createdTasks: any[] = [];
+
+      for (let i = 0; i < selectedTasks.length; i++) {
+        // Generate random duration between 1 and 3 hours
+        const randomDuration =
+          minDurationHours +
+          Math.random() * (maxDurationHours - minDurationHours);
+        const taskDuration = Math.round(randomDuration * 100) / 100; // Round to 2 decimal places
+
+        // Create the task
+        const task = await this.prisma.task.create({
+          data: {
+            title: selectedTasks[i].name,
+            description: `Completed task: ${selectedTasks[i].name}`,
+            duration: taskDuration,
+            date: attendanceRecord.date,
+          },
+        });
+
+        // Link task to attendance record through pivot table
+        await this.prisma.attendanceTask.create({
+          data: {
+            attendanceRecordId: attendanceRecord.id,
+            taskId: task.id,
+          },
+        });
+
+        createdTasks.push(task);
+        
+        console.log(
+          `Task ${i + 1}: ${selectedTasks[i].name} - ${taskDuration} hours`,
+        );
+      }
+
+      console.log(
+        `Created ${createdTasks.length} tasks for attendance record ${attendanceRecord.id}`,
+      );
+      return createdTasks;
+    } catch (error) {
+      console.error('Error creating random tasks:', error);
+      // Don't throw error to avoid breaking clock out process
+    }
+  }
+
+  private getRandomTasks(roleTasks: any[], count: number): any[] {
+    // Shuffle array and take first 'count' items
+    const shuffled = [...roleTasks].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, Math.min(count, roleTasks.length));
   }
 
   async requestTimeOff(

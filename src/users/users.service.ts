@@ -125,6 +125,19 @@ export class UsersService {
         where: whereCondition,
       });
 
+      // Get counts by role
+      const [companyAdminCount, employeeCount, superAdminCount] = await Promise.all([
+        this.prisma.user.count({
+          where: { role: Role.COMPANY_ADMIN },
+        }),
+        this.prisma.user.count({
+          where: { role: Role.EMPLOYEE },
+        }),
+        this.prisma.user.count({
+          where: { role: Role.SUPER_ADMIN },
+        }),
+      ]);
+
       // Get paginated users (with search filter)
       const users = await this.prisma.user.findMany({
         where: whereCondition,
@@ -154,6 +167,9 @@ export class UsersService {
 
       const usersData = {
         totalUsers: totalUsers,
+        companyAdminCount: companyAdminCount,
+        employeeCount: employeeCount,
+        superAdminCount: superAdminCount,
         users: paginatedResult.data,
         pagination: paginatedResult.pagination,
       };
@@ -415,6 +431,7 @@ export class UsersService {
               location: true,
             },
           },
+          employeeRoles: true,
         },
       });
 

@@ -58,6 +58,9 @@ export class CompaniesService {
         where: whereCondition,
       });
 
+      // Get total employees across all companies
+      const totalEmployees = await this.prisma.user.count();
+
       // Get paginated companies (with search filter)
       const companies = await this.prisma.company.findMany({
         where: whereCondition,
@@ -93,8 +96,16 @@ export class CompaniesService {
         totalCompanies,
       );
 
+      // Calculate average employees per company
+      const avgEmployeesPerCompany =
+        totalCompanies > 0
+          ? Math.round((totalEmployees / totalCompanies) * 100) / 100
+          : 0;
+
       const companiesData = {
         totalCompanies: totalCompanies,
+        totalEmployees: totalEmployees,
+        avgEmployeesPerCompany: avgEmployeesPerCompany,
         companies: paginatedResult.data,
         pagination: paginatedResult.pagination,
       };
@@ -231,6 +242,22 @@ export class CompaniesService {
         where: whereCondition,
       });
 
+      // Get counts by role for this company
+      const [companyAdminCount, employeeCount] = await Promise.all([
+        this.prisma.user.count({
+          where: {
+            companyId: user.companyId,
+            role: Role.COMPANY_ADMIN,
+          },
+        }),
+        this.prisma.user.count({
+          where: {
+            companyId: user.companyId,
+            role: Role.EMPLOYEE,
+          },
+        }),
+      ]);
+
       // Get paginated employees from the same company (with search filter)
       const employees = await this.prisma.user.findMany({
         where: whereCondition,
@@ -261,6 +288,8 @@ export class CompaniesService {
       const employeeData = {
         companyId: user.companyId,
         totalEmployees: totalEmployees,
+        companyAdminCount: companyAdminCount,
+        employeeCount: employeeCount,
         employees: paginatedResult.data,
         pagination: paginatedResult.pagination,
       };
@@ -379,6 +408,17 @@ export class CompaniesService {
                 },
               },
             },
+            include: {
+              attendanceTasks: {
+                include: {
+                  attendanceRecord: {
+                    include: {
+                      user: true,
+                    },
+                  },
+                },
+              },
+            },
           });
 
           const attendanceRecords = userData.attendances;
@@ -417,6 +457,7 @@ export class CompaniesService {
             role: userData.role as 'EMPLOYEE' | 'COMPANY_ADMIN',
             totalHours: Math.round(totalHours * 100) / 100,
             tasksCompleted,
+            tasks,
             productivity: Math.round(productivity * 100) / 100,
             attendanceRate: Math.round(attendanceRate * 100) / 100,
             date: new Date().toISOString().split('T')[0],
