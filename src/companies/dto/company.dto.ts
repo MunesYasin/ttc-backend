@@ -4,13 +4,8 @@ export class CreateCompanyDto {
   @IsString()
   name: string;
 
-  @IsOptional()
   @IsString()
-  industry?: string;
-
-  @IsOptional()
-  @IsString()
-  logoUrl?: string;
+  location: string;
 }
 
 export class UpdateCompanyDto {
@@ -18,11 +13,6 @@ export class UpdateCompanyDto {
   @IsString()
   name?: string;
 
-  @IsOptional()
   @IsString()
-  industry?: string;
-
-  @IsOptional()
-  @IsString()
-  logoUrl?: string;
+  location?: string;
 }

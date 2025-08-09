@@ -11,6 +11,7 @@ import { TasksModule } from './tasks/tasks.module';
 import { SuperAdminModule } from './super-admin/super-admin.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { EmployeeRolesModule } from './employee-roles/employee-roles.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     SuperAdminModule,
     DashboardModule,
     NotificationsModule,
+    EmployeeRolesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

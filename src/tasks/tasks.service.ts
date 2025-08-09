@@ -21,20 +21,58 @@ export class TasksService {
 
   async create(createTaskDto: CreateTaskDto) {
     try {
+      // First, verify the attendance record exists and get the user info
+      const attendanceRecord = await this.prisma.attendanceRecord.findUnique({
+        where: { id: createTaskDto.attendanceRecordId },
+        include: { user: true },
+      });
+
+      if (!attendanceRecord) {
+        throw new NotFoundException('Attendance record not found');
+      }
+
+      // Check if user can create tasks for this attendance record
+      await this.taskAccessPolicy.canCreate(
+        attendanceRecord.user,
+        attendanceRecord.userId,
+      );
+
       const task = await this.prisma.task.create({
         data: {
-          userId: createTaskDto.userId,
           date: new Date(createTaskDto.date),
           title: createTaskDto.title,
           description: createTaskDto.description,
           duration: createTaskDto.duration,
         },
-        include: {
-          user: true,
+      });
+
+      // Create the relationship in the junction table
+      await this.prisma.attendanceTask.create({
+        data: {
+          taskId: task.id,
+          attendanceRecordId: createTaskDto.attendanceRecordId,
         },
       });
 
-      return successResponse(task, 'Task created successfully', 201);
+      // Return task with attendance record info
+      const taskWithRelations = await this.prisma.task.findUnique({
+        where: { id: task.id },
+        include: {
+          attendanceTasks: {
+            include: {
+              attendanceRecord: {
+                include: { user: true },
+              },
+            },
+          },
+        },
+      });
+
+      return successResponse(
+        taskWithRelations,
+        'Task created successfully',
+        201,
+      );
     } catch (error) {
       handlePrismaError(error);
     }
@@ -52,25 +90,41 @@ export class TasksService {
       const { page: normalizedPage, limit: normalizedLimit } =
         normalizePaginationParams(page, limit);
 
-      const where: any = {};
+      const where: {
+        attendanceTasks?: any;
+        date?: {
+          gte?: Date;
+          lte?: Date;
+        };
+      } = {};
 
       if (currentUser.role === Role.EMPLOYEE) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        where.userId = currentUser.id;
+        // For employees, find tasks linked to their attendance records
+        where.attendanceTasks = {
+          some: {
+            attendanceRecord: {
+              userId: currentUser.id,
+            },
+          },
+        };
       }
 
       if (currentUser.role === Role.COMPANY_ADMIN) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        where.user = {
-          companyId: currentUser.companyId,
+        // For company admins, find tasks linked to attendance records of users in their company
+        where.attendanceTasks = {
+          some: {
+            attendanceRecord: {
+              user: {
+                companyId: currentUser.companyId,
+              },
+            },
+          },
         };
       }
+
       if (startDate || endDate) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         where.date = {};
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         if (startDate) where.date.gte = startDate;
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         if (endDate) where.date.lte = endDate;
       }
 
@@ -79,15 +133,19 @@ export class TasksService {
 
       // Get total count for pagination info
       const totalRecords = await this.prisma.task.count({
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         where,
       });
 
       const tasks = await this.prisma.task.findMany({
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         where,
         include: {
-          user: true,
+          attendanceTasks: {
+            include: {
+              attendanceRecord: {
+                include: { user: true },
+              },
+            },
+          },
         },
         orderBy: {
           date: 'desc',
@@ -136,24 +194,31 @@ export class TasksService {
       // Use ensure method which already fetches the task and validates access
       await this.taskAccessPolicy.ensureUserCanAccessTask(currentUser, id);
 
-      const updateData: any = {};
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      const updateData: {
+        date?: Date;
+        title?: string;
+        description?: string;
+        duration?: number;
+      } = {};
+
       if (updateTaskDto.date) updateData.date = new Date(updateTaskDto.date);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       if (updateTaskDto.title) updateData.title = updateTaskDto.title;
       if (updateTaskDto.description)
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         updateData.description = updateTaskDto.description;
       if (updateTaskDto.duration !== undefined)
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         updateData.duration = updateTaskDto.duration;
 
       const task = await this.prisma.task.update({
         where: { id },
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         data: updateData,
         include: {
-          user: true,
+          attendanceTasks: {
+            include: {
+              attendanceRecord: {
+                include: { user: true },
+              },
+            },
+          },
         },
       });
 
@@ -171,7 +236,13 @@ export class TasksService {
       const task = await this.prisma.task.delete({
         where: { id },
         include: {
-          user: true,
+          attendanceTasks: {
+            include: {
+              attendanceRecord: {
+                include: { user: true },
+              },
+            },
+          },
         },
       });
 
@@ -190,26 +261,40 @@ export class TasksService {
     try {
       this.taskAccessPolicy.canReadCompanyTasks(currentUser, companyId);
 
-      const where: any = {
-        user: {
-          companyId,
+      const where: {
+        attendanceTasks?: any;
+        date?: {
+          gte?: Date;
+          lte?: Date;
+        };
+      } = {
+        attendanceTasks: {
+          some: {
+            attendanceRecord: {
+              user: {
+                companyId,
+              },
+            },
+          },
         },
       };
 
       if (startDate || endDate) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         where.date = {};
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         if (startDate) where.date.gte = startDate;
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         if (endDate) where.date.lte = endDate;
       }
 
       const tasks = await this.prisma.task.findMany({
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         where,
         include: {
-          user: true,
+          attendanceTasks: {
+            include: {
+              attendanceRecord: {
+                include: { user: true },
+              },
+            },
+          },
         },
         orderBy: {
           date: 'desc',
@@ -229,7 +314,15 @@ export class TasksService {
   async getTaskStats(userId: number) {
     try {
       const tasks = await this.prisma.task.findMany({
-        where: { userId },
+        where: {
+          attendanceTasks: {
+            some: {
+              attendanceRecord: {
+                userId,
+              },
+            },
+          },
+        },
         select: {
           duration: true,
           date: true,
@@ -287,7 +380,13 @@ export class TasksService {
           title: `[${status.toUpperCase()}] ${existingTask.title.replace(/^\[(PENDING|IN_PROGRESS|COMPLETED)\]\s*/, '')}`,
         },
         include: {
-          user: true,
+          attendanceTasks: {
+            include: {
+              attendanceRecord: {
+                include: { user: true },
+              },
+            },
+          },
         },
       });
 

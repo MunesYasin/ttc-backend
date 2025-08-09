@@ -31,14 +31,60 @@ export class CompaniesController {
 
   @Get()
   @Roles(Role.SUPER_ADMIN)
-  findAll() {
-    return this.companiesService.findAll();
+  findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    const pageNumber = page ? parseInt(page, 10) : 1;
+    const limitNumber = limit ? parseInt(limit, 10) : 10;
+    return this.companiesService.findAll(pageNumber, limitNumber, search);
   }
 
   @Get('my-company')
   @Roles(Role.COMPANY_ADMIN)
   getMyCompany(@CurrentUser() user: User) {
     return this.companiesService.getMyCompany(user);
+  }
+
+  @Get('my-company/employees')
+  @Roles(Role.COMPANY_ADMIN)
+  getMyCompanyEmployees(
+    @CurrentUser() user: User,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    const pageNumber = page ? parseInt(page, 10) : 1;
+    const pageLimit = limit ? parseInt(limit, 10) : 10;
+    return this.companiesService.getMyCompanyEmployees(
+      user,
+      pageNumber,
+      pageLimit,
+      search,
+    );
+  }
+
+  @Get('my-company/user-reports')
+  @Roles(Role.COMPANY_ADMIN, Role.SUPER_ADMIN)
+  getMyCompanyUserReports(
+    @CurrentUser() user: User,
+    @Query('page') page?: string,
+    @Query('filterType') filterType?: string,
+    @Query('filterValue') filterValue?: string,
+    @Query('search') search?: string,
+    @Query('companyId') companyId?: string,
+  ) {
+    const pageNumber = page ? parseInt(page, 10) : 1;
+    const companyIdNumber = companyId ? parseInt(companyId, 10) : undefined;
+    return this.companiesService.getMyCompanyUserReports(
+      user,
+      pageNumber,
+      filterType,
+      filterValue,
+      search,
+      companyIdNumber,
+    );
   }
 
   @Get(':id')
@@ -48,13 +94,12 @@ export class CompaniesController {
   }
 
   @Patch(':id')
-  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  @Roles(Role.SUPER_ADMIN)
   async update(
     @Param('id') id: number,
     @Body() updateCompanyDto: UpdateCompanyDto,
-    @CurrentUser() user: User,
   ) {
-    return this.companiesService.update(id, updateCompanyDto, user);
+    return this.companiesService.update(id, updateCompanyDto);
   }
 
   @Delete(':id')

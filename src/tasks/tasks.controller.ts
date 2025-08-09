@@ -27,11 +27,9 @@ export class TasksController {
 
   @Post()
   @Roles(Role.EMPLOYEE, Role.COMPANY_ADMIN, Role.SUPER_ADMIN)
-  create(@Body() createTaskDto: CreateTaskDto, @CurrentUser() user: User) {
-    // Employees can only create tasks for themselves
-    if (user.role === Role.EMPLOYEE) {
-      createTaskDto.userId = user.id;
-    }
+  create(@Body() createTaskDto: CreateTaskDto) {
+    // Note: attendanceRecordId must be provided in the request body
+    // The service will validate that the user has access to that attendance record
     return this.tasksService.create(createTaskDto);
   }
 

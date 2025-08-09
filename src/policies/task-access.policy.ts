@@ -15,7 +15,13 @@ export class TaskAccessPolicy {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
       include: {
-        user: true,
+        attendanceTasks: {
+          include: {
+            attendanceRecord: {
+              include: { user: true },
+            },
+          },
+        },
       },
     });
 
@@ -27,18 +33,26 @@ export class TaskAccessPolicy {
       return task;
     }
 
-    if (user.role === Role.EMPLOYEE && user.id === taskId) {
-      return task;
-    }
-
-    if (user.role === Role.COMPANY_ADMIN) {
-      if (user.companyId !== task.user.companyId) {
-        throw new ForbiddenException('Access denied: user not in your company');
+    // Check if the user has access to any of the attendance records linked to this task
+    const hasAccess = task.attendanceTasks.some((attendanceTask) => {
+      const attendanceUser = attendanceTask.attendanceRecord.user;
+      
+      if (user.role === Role.EMPLOYEE) {
+        return attendanceUser.id === user.id;
       }
-      return task;
+      
+      if (user.role === Role.COMPANY_ADMIN) {
+        return attendanceUser.companyId === user.companyId;
+      }
+      
+      return false;
+    });
+
+    if (!hasAccess) {
+      throw new ForbiddenException('Access denied to read this task');
     }
 
-    throw new ForbiddenException('Access denied to read this task');
+    return task;
   }
 
   async canCreate(user: User, userId: number): Promise<void> {
@@ -70,7 +84,13 @@ export class TaskAccessPolicy {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
       include: {
-        user: true,
+        attendanceTasks: {
+          include: {
+            attendanceRecord: {
+              include: { user: true },
+            },
+          },
+        },
       },
     });
 
@@ -82,18 +102,26 @@ export class TaskAccessPolicy {
       return task;
     }
 
-    if (user.role === Role.EMPLOYEE && user.id === taskId) {
-      return task;
-    }
-
-    if (user.role === Role.COMPANY_ADMIN) {
-      if (user.companyId !== task.user.companyId) {
-        throw new ForbiddenException('Access denied: user not in your company');
+    // Check if the user has access to any of the attendance records linked to this task
+    const hasAccess = task.attendanceTasks.some((attendanceTask) => {
+      const attendanceUser = attendanceTask.attendanceRecord.user;
+      
+      if (user.role === Role.EMPLOYEE) {
+        return attendanceUser.id === user.id;
       }
-      return task;
+      
+      if (user.role === Role.COMPANY_ADMIN) {
+        return attendanceUser.companyId === user.companyId;
+      }
+      
+      return false;
+    });
+
+    if (!hasAccess) {
+      throw new ForbiddenException('Access denied to read this task');
     }
 
-    throw new ForbiddenException('Access denied to read this task');
+    return task;
   }
 
   async canUpdate(user: User, userId: number): Promise<void> {

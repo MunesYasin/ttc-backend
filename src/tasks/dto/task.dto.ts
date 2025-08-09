@@ -2,10 +2,6 @@ import { IsString, IsNumber, IsDateString, IsOptional } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class CreateTaskDto {
-  @Transform(({ value }) => (value ? parseInt(value as string, 10) : undefined))
-  @IsNumber()
-  userId: number;
-
   @IsDateString()
   date: string;
 
@@ -17,6 +13,10 @@ export class CreateTaskDto {
 
   @IsNumber()
   duration: number;
+
+  @Transform(({ value }) => (value ? parseInt(value as string, 10) : undefined))
+  @IsNumber()
+  attendanceRecordId: number;
 }
 
 export class UpdateTaskDto {

@@ -1,8 +1,10 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
+
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["extendedWhereUnique"]
 }
 
 datasource db {
@@ -13,30 +15,62 @@ datasource db {
 model User {
   id         Int      @id @default(autoincrement())
   name       String
-  email      String   @unique
   password   String
   role       Role
-  timezone   String?
-  company    Company? @relation(fields: [companyId], references: [id])
-  companyId  Int?
-  tasks      Task[]
+  timezone   String
+  email      String  @unique   
+  // Personal Information
+  nationalId            String  @unique
+  hijriBirthDate        DateTime
+  gregorianBirthDate    DateTime
+  gender                String
+  address               String
+  absherMobile          String  @unique
+  contactMobile         String  @unique
+  personalEmail         String  @unique
+  
+  // Job Information
+  department            String
+  totalSalary           Float
+  contractStartDate     DateTime
+  remoteWorkDate        DateTime
+  directManager         String
+  
+  company    Company @relation(fields: [companyId], references: [id])
+  companyId  Int
+  employeeRoles  EmployeeRoles   @relation(fields: [employeeRolesId], references: [id])
+  employeeRolesId  Int @default(1)
   attendances AttendanceRecord[]
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   @@index([companyId])
+  @@index([nationalId])
   @@index([email])
 }
 
 model Company {
   id        Int      @id @default(autoincrement())
   name      String
-  industry  String?
-  logoUrl   String?
+  location   String  @default("الرياض")
   users     User[]
   reports   DailyReport[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model EmployeeRoles{
+  id      Int @id @default(autoincrement())
+  name    String @unique
+  roleTasks   RoleTasks[]
+  users   User[]
+}
+
+model RoleTasks{
+  id                  Int @id @default(autoincrement())
+  name                String
+  employeeRolesId     Int
+  employeeRoles       EmployeeRoles     @relation(fields: [employeeRolesId], references: [id])
 }
 
 model AttendanceRecord {
@@ -50,15 +84,16 @@ model AttendanceRecord {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  // Many-to-many relationship with Task
+  attendanceTasks AttendanceTask[]
+
   @@unique([userId, date])
   @@index([userId])
   @@index([date])
 }
 
 model Task {
-  id          Int      @id @default(autoincrement())
-  user        User     @relation(fields: [userId], references: [id])
-  userId      Int
+  id          Int      @id @default(autoincrement()) 
   date        DateTime @db.Date
   title       String
   description String   @db.Text
@@ -66,8 +101,24 @@ model Task {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@index([userId])
+  // Many-to-many relationship with AttendanceRecord
+  attendanceTasks AttendanceTask[]
+
   @@index([date])
+}
+
+// Junction table for AttendanceRecord and Task many-to-many relationship
+model AttendanceTask {
+  id                Int              @id @default(autoincrement())
+  attendanceRecord  AttendanceRecord @relation(fields: [attendanceRecordId], references: [id], onDelete: Cascade)
+  attendanceRecordId Int
+  task              Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId            Int
+  createdAt         DateTime         @default(now())
+
+  @@unique([attendanceRecordId, taskId])
+  @@index([attendanceRecordId])
+  @@index([taskId])
 }
 
 model DailyReport {

@@ -215,7 +215,9 @@ export class AttendanceService {
 
       console.log('Query returned records:', attendanceRecords.length);
       if (attendanceRecords.length === 0 && totalRecords > 0) {
-        console.log('WARNING: Empty result but totalRecords > 0. Possible pagination issue.');
+        console.log(
+          'WARNING: Empty result but totalRecords > 0. Possible pagination issue.',
+        );
       }
 
       // Add hoursWorked to each record and calculate total work hours

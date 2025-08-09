@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { successResponse } from '../../utilies/response';
 import { handlePrismaError } from '../../utilies/error-handler';
-import { getUserLocalDateString } from '../common/helpers/date.helper';
+import {
+  getUserLocalDateString,
+  getTodayInTimezone,
+} from '../common/helpers/date.helper';
 import type { User } from '@prisma/client';
 
 @Injectable()
@@ -113,7 +116,13 @@ export class DashboardService {
         // Current week tasks
         this.prisma.task.findMany({
           where: {
-            userId,
+            attendanceTasks: {
+              some: {
+                attendanceRecord: {
+                  userId,
+                },
+              },
+            },
             date: {
               gte: new Date(currentWeekStartDateOnly),
               lte: new Date(currentWeekEndDateOnly),
@@ -123,7 +132,13 @@ export class DashboardService {
         // Previous week tasks
         this.prisma.task.findMany({
           where: {
-            userId,
+            attendanceTasks: {
+              some: {
+                attendanceRecord: {
+                  userId,
+                },
+              },
+            },
             date: {
               gte: new Date(previousWeekStartDateOnly),
               lte: new Date(previousWeekEndDateOnly),
@@ -132,7 +147,15 @@ export class DashboardService {
         }),
         // Recent tasks (last 5)
         this.prisma.task.findMany({
-          where: { userId },
+          where: {
+            attendanceTasks: {
+              some: {
+                attendanceRecord: {
+                  userId,
+                },
+              },
+            },
+          },
           take: 5,
           orderBy: { createdAt: 'desc' },
         }),
@@ -261,7 +284,17 @@ export class DashboardService {
               },
             },
           }),
-          this.prisma.task.count({ where: { userId } }),
+          this.prisma.task.count({
+            where: {
+              attendanceTasks: {
+                some: {
+                  attendanceRecord: {
+                    userId,
+                  },
+                },
+              },
+            },
+          }),
           this.prisma.attendanceRecord.count({
             where: {
               userId,
@@ -312,13 +345,25 @@ export class DashboardService {
         await Promise.all([
           this.prisma.task.findMany({
             where: {
-              userId,
+              attendanceTasks: {
+                some: {
+                  attendanceRecord: {
+                    userId,
+                  },
+                },
+              },
               date: { gte: thisMonth },
             },
           }),
           this.prisma.task.findMany({
             where: {
-              userId,
+              attendanceTasks: {
+                some: {
+                  attendanceRecord: {
+                    userId,
+                  },
+                },
+              },
               date: { gte: lastMonth, lt: thisMonth },
             },
           }),
@@ -439,8 +484,14 @@ export class DashboardService {
             gte: currentWeekStart,
             lte: currentWeekEnd,
           },
-          user: {
-            companyId,
+          attendanceTasks: {
+            some: {
+              attendanceRecord: {
+                user: {
+                  companyId,
+                },
+              },
+            },
           },
         },
       });
@@ -626,17 +677,31 @@ export class DashboardService {
       // Get the last 4 tasks for all employees in the company
       const recentTasks = await this.prisma.task.findMany({
         where: {
-          user: {
-            companyId,
-            role: 'EMPLOYEE',
+          attendanceTasks: {
+            some: {
+              attendanceRecord: {
+                user: {
+                  companyId,
+                  role: 'EMPLOYEE',
+                },
+              },
+            },
           },
         },
         include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
+          attendanceTasks: {
+            include: {
+              attendanceRecord: {
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      name: true,
+                      email: true,
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -646,21 +711,27 @@ export class DashboardService {
         take: 4,
       });
 
-      const tasksWithDetails = recentTasks.map((task) => ({
-        id: task.id,
-        title: task.title,
-        description: task.description,
-        duration: task.duration,
-        date: task.date,
-        createdAt: task.createdAt,
-        updatedAt: task.updatedAt,
-        employee: {
-          id: task.user.id,
-          name: task.user.name,
-          email: task.user.email,
-        },
-        timeAgo: this.getTimeAgo(task.createdAt),
-      }));
+      const tasksWithDetails = recentTasks.map((task) => {
+        // Get the first attendanceTask to extract user info (tasks can have multiple but we'll show the first user)
+        const firstAttendance = task.attendanceTasks[0];
+        const user = firstAttendance?.attendanceRecord?.user;
+        
+        return {
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          duration: task.duration,
+          date: task.date,
+          createdAt: task.createdAt,
+          updatedAt: task.updatedAt,
+          employee: {
+            id: user?.id || 0,
+            name: user?.name || 'Unknown',
+            email: user?.email || 'Unknown',
+          },
+          timeAgo: this.getTimeAgo(task.createdAt),
+        };
+      });
 
       const recentTasksData = {
         totalTasks: recentTasks.length,
@@ -708,6 +779,210 @@ export class DashboardService {
     } else {
       const days = Math.floor(diffInSeconds / 86400);
       return `قبل ${days} يوم`;
+    }
+  }
+
+  async getSuperAdminDashboard(currentUser?: User) {
+    try {
+      // Use the current user's timezone if available, otherwise default to UTC
+      const userTimezone = currentUser?.timezone || 'UTC';
+
+      // Get today's date string in user's timezone format (YYYY-MM-DD)
+      const todayDateString = getTodayInTimezone(userTimezone);
+
+      // Get last 4 tasks across all companies
+      const lastTasks = await this.prisma.task.findMany({
+        take: 4,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        include: {
+          attendanceTasks: {
+            include: {
+              attendanceRecord: {
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      name: true,
+                      timezone: true,
+                      company: {
+                        select: {
+                          id: true,
+                          name: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // Get all companies with their total work hours
+      const companiesWithHours = await this.prisma.company.findMany({
+        include: {
+          users: {
+            select: {
+              id: true,
+              name: true,
+              timezone: true,
+              attendances: {
+                where: {
+                  clockInAt: { not: null },
+                  clockOutAt: { not: null },
+                },
+                select: {
+                  clockInAt: true,
+                  clockOutAt: true,
+                  date: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // Calculate total work hours for each company and get top 4
+      const companiesWithWorkHours = companiesWithHours
+        .map((company) => {
+          const totalHours = company.users.reduce((companyTotal, user) => {
+            const userHours = user.attendances.reduce((userTotal, record) => {
+              if (record.clockInAt && record.clockOutAt) {
+                // Calculate hours based on actual clock times (already in user's local timezone)
+                const hours =
+                  (record.clockOutAt.getTime() - record.clockInAt.getTime()) /
+                  (1000 * 60 * 60);
+                return userTotal + hours;
+              }
+              return userTotal;
+            }, 0);
+            return companyTotal + userHours;
+          }, 0);
+
+          return {
+            id: company.id,
+            name: company.name,
+            location: company.location,
+            totalEmployees: company.users.length,
+            totalWorkHours: Math.round(totalHours * 100) / 100,
+            createdAt: company.createdAt,
+          };
+        })
+        .sort((a, b) => b.totalWorkHours - a.totalWorkHours)
+        .slice(0, 4);
+
+      // Get general statistics
+      const [totalCompanies, totalUsers, todayAttendance, todayTasks] =
+        await Promise.all([
+          // Total companies
+          this.prisma.company.count(),
+
+          // Total users
+          this.prisma.user.count(),
+
+          // Today's attendance records with work hours (using local date comparison)
+          this.prisma.attendanceRecord.findMany({
+            where: {
+              date: {
+                gte: new Date(todayDateString),
+                lte: new Date(todayDateString),
+              },
+              clockInAt: { not: null },
+              clockOutAt: { not: null },
+            },
+            select: {
+              clockInAt: true,
+              clockOutAt: true,
+              date: true,
+            },
+          }),
+
+          // Today's tasks (using local date comparison)
+          this.prisma.task.count({
+            where: {
+              date: {
+                gte: new Date(todayDateString),
+                lte: new Date(todayDateString),
+              },
+            },
+          }),
+        ]);
+
+      // Calculate total work hours for today
+      const todayTotalWorkHours = todayAttendance.reduce((total, record) => {
+        if (record.clockInAt && record.clockOutAt) {
+          // Calculate hours based on actual clock times
+          const hours =
+            (record.clockOutAt.getTime() - record.clockInAt.getTime()) /
+            (1000 * 60 * 60);
+          return total + hours;
+        }
+        return total;
+      }, 0);
+
+      // Format last tasks with timezone-aware dates
+      const formattedLastTasks = lastTasks.map((task) => {
+        // Get the first attendanceTask to extract user info (tasks can have multiple but we'll show the first user)
+        const firstAttendance = task.attendanceTasks[0];
+        const user = firstAttendance?.attendanceRecord?.user;
+        
+        return {
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          duration: task.duration,
+          date: task.date,
+          employee: {
+            id: user?.id || 0,
+            name: user?.name || 'Unknown',
+            timezone: user?.timezone || 'UTC',
+          },
+          company: {
+            id: user?.company?.id || 0,
+            name: user?.company?.name || 'Unknown',
+          },
+          createdAt: task.createdAt,
+          // Format creation time in local timezone if user timezone is available
+          createdAtLocal: user?.timezone
+            ? new Date(task.createdAt).toLocaleString('en-US', {
+                timeZone: user.timezone,
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+              })
+            : task.createdAt,
+        };
+      });
+
+      const dashboardData = {
+        lastTasks: formattedLastTasks,
+        topCompaniesByWorkHours: companiesWithWorkHours,
+        statistics: {
+          totalCompanies,
+          totalUsers,
+          todayTotalWorkHours: Math.round(todayTotalWorkHours * 100) / 100,
+          todayTotalTasks: todayTasks,
+          dateInfo: {
+            todayLocal: todayDateString,
+            userTimezone: userTimezone,
+            serverTime: new Date().toISOString(),
+            serverTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          },
+        },
+      };
+
+      return successResponse(
+        dashboardData,
+        'Super admin dashboard retrieved successfully',
+        200,
+      );
+    } catch (error) {
+      handlePrismaError(error);
     }
   }
 }

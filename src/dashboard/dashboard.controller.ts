@@ -47,4 +47,10 @@ export class DashboardController {
   getPerformanceAnalytics(@CurrentUser() user: User) {
     return this.dashboardService.getPerformanceAnalytics(user.id);
   }
+
+  @Get('super-admin')
+  @Roles(Role.SUPER_ADMIN)
+  getSuperAdminDashboard(@CurrentUser() user: User) {
+    return this.dashboardService.getSuperAdminDashboard(user);
+  }
 }

@@ -9,15 +9,26 @@ export const successResponse = (
   message,
 });
 
-export const errorResponse = (
-  message = 'Something went wrong',
-  status = 500,
-  data: any = null,
-) => ({
-  status,
-  data,
-  message,
-});
+// utils/error-response.ts
+// utils/errorResponse.ts
+export function errorResponse(
+  errors: { field: string; errors: string[] }[],
+  message = 'Validation failed',
+  statusCode = 400,
+) {
+  throw new Error({
+    errors: errors.map((error) => ({
+      field: error.field,
+      message: error.errors.join(', '),
+    })),
+  });
+  return {
+    success: false,
+    message,
+    errors,
+    statusCode,
+  };
+}
 
 export const paginationResponse = (
   data: any[],
