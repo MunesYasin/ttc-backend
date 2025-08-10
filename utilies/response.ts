@@ -4,6 +4,7 @@ export const successResponse = (
   message = 'Success',
   status: number,
 ) => ({
+  success: true,
   status,
   data,
   message,
@@ -14,13 +15,14 @@ export const successResponse = (
 export function errorResponse(
   errors: { field: string; errors: string[] }[],
   message = 'Validation failed',
-  statusCode = 400,
+  status = 400,
 ) {
   return {
     success: false,
+    status,
     message,
     errors,
-    statusCode,
+    data: null,
   };
 }
 

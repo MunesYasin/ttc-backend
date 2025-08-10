@@ -1,7 +1,6 @@
 // src/common/utils/handle-prisma-error.ts
 import { Prisma } from '@prisma/client';
 import {
-  UnauthorizedException,
   BadRequestException,
   InternalServerErrorException,
 } from '@nestjs/common';
@@ -19,9 +18,9 @@ export function handlePrismaError(error: any): never {
     }
   }
 
-  if (error instanceof UnauthorizedException) {
-    throw error; // allow it to bubble up
-  }
+  // if (error instanceof UnauthorizedException) {
+  throw error; // allow it to bubble up
+  // }
 
   // For other errors, return the actual error message if exists
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access

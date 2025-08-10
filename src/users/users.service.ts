@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
@@ -9,7 +10,7 @@ import * as bcrypt from 'bcryptjs';
 import type { User } from '@prisma/client';
 import { Role } from '../common/enums/role.enum';
 import { EmployeeAccessPolicy } from '../policies/employee-access.policy';
-import { errorResponse, successResponse } from '../../utilies/response';
+import { successResponse } from '../../utilies/response';
 import { handlePrismaError } from '../../utilies/error-handler';
 import { calculateDateRanges } from '../common/helpers/date.helper';
 import {
@@ -43,18 +44,81 @@ export class UsersService {
 
       ////////////////////// db errors vaildations
       const dbErrors: { field: string; errors: string[] }[] = [];
-      const notionalIDExist = await this.prisma.user.findUnique({
-        where: { nationalId: createUserDto.nationalId },
-      });
-      if (notionalIDExist) {
-        dbErrors.push({
-          field: 'nationalId',
-          errors: ['National ID is already taken'],
+
+      // Check for unique constraints before creating
+      if (createUserDto.nationalId) {
+        const existingNationalId = await this.prisma.user.findUnique({
+          where: { nationalId: createUserDto.nationalId },
         });
+        if (existingNationalId) {
+          dbErrors.push({
+            field: 'nationalId',
+            errors: ['National ID is already taken'],
+          });
+        }
+      }
+
+      if (createUserDto.personalEmail) {
+        const existingPersonalEmail = await this.prisma.user.findFirst({
+          where: { personalEmail: createUserDto.personalEmail },
+        });
+        if (existingPersonalEmail) {
+          dbErrors.push({
+            field: 'personalEmail',
+            errors: ['Personal email is already taken'],
+          });
+        }
+      }
+
+      if (createUserDto.email) {
+        const existingEmail = await this.prisma.user.findFirst({
+          where: { email: createUserDto.email },
+        });
+        if (existingEmail) {
+          dbErrors.push({
+            field: 'email',
+            errors: ['Email is already taken'],
+          });
+        }
+      }
+
+      if (createUserDto.absherMobile) {
+        const formattedAbsherMobile = formatMobileNumber(
+          createUserDto.absherMobile,
+        );
+        const existingAbsherMobile = await this.prisma.user.findFirst({
+          where: { absherMobile: formattedAbsherMobile },
+        });
+        if (existingAbsherMobile) {
+          dbErrors.push({
+            field: 'absherMobile',
+            errors: ['Absher mobile number is already taken'],
+          });
+        }
+      }
+
+      if (createUserDto.contactMobile) {
+        const formattedContactMobile = formatMobileNumber(
+          createUserDto.contactMobile,
+        );
+        const existingContactMobile = await this.prisma.user.findFirst({
+          where: { contactMobile: formattedContactMobile },
+        });
+        if (existingContactMobile) {
+          dbErrors.push({
+            field: 'contactMobile',
+            errors: ['Contact mobile number is already taken'],
+          });
+        }
       }
 
       if (dbErrors.length > 0) {
-        return errorResponse(dbErrors, 'Database validation failed', 400);
+        throw new BadRequestException({
+          message: 'Database validation failed',
+          error: 'Bad Request',
+          statusCode: 400,
+          errors: dbErrors,
+        });
       }
       // Prepare user data with new fields
       const userData = {
@@ -95,6 +159,8 @@ export class UsersService {
 
       return successResponse(user, 'User created successfully', 201);
     } catch (error) {
+      // Handle Prisma errors for any missed unique constraints
+
       handlePrismaError(error);
     }
   }
@@ -126,17 +192,18 @@ export class UsersService {
       });
 
       // Get counts by role
-      const [companyAdminCount, employeeCount, superAdminCount] = await Promise.all([
-        this.prisma.user.count({
-          where: { role: Role.COMPANY_ADMIN },
-        }),
-        this.prisma.user.count({
-          where: { role: Role.EMPLOYEE },
-        }),
-        this.prisma.user.count({
-          where: { role: Role.SUPER_ADMIN },
-        }),
-      ]);
+      const [companyAdminCount, employeeCount, superAdminCount] =
+        await Promise.all([
+          this.prisma.user.count({
+            where: { role: Role.COMPANY_ADMIN },
+          }),
+          this.prisma.user.count({
+            where: { role: Role.EMPLOYEE },
+          }),
+          this.prisma.user.count({
+            where: { role: Role.SUPER_ADMIN },
+          }),
+        ]);
 
       // Get paginated users (with search filter)
       const users = await this.prisma.user.findMany({
@@ -338,11 +405,110 @@ export class UsersService {
         );
       }
 
+      // Pre-validation checks for unique fields
+      const dbErrors: { field: string; errors: string[] }[] = [];
+
+      // Check for unique constraints before updating
+      if (updateUserDto.nationalId) {
+        const existingNationalId = await this.prisma.user.findFirst({
+          where: {
+            nationalId: updateUserDto.nationalId,
+            NOT: { id }, // Exclude current user
+          },
+        });
+        if (existingNationalId) {
+          dbErrors.push({
+            field: 'nationalId',
+            errors: ['National ID is already taken'],
+          });
+        }
+      }
+
+      if (updateUserDto.personalEmail) {
+        const existingPersonalEmail = await this.prisma.user.findFirst({
+          where: {
+            personalEmail: updateUserDto.personalEmail,
+            NOT: { id }, // Exclude current user
+          },
+        });
+        if (existingPersonalEmail) {
+          dbErrors.push({
+            field: 'personalEmail',
+            errors: ['Personal email is already taken'],
+          });
+        }
+      }
+
+      if (updateUserDto.email) {
+        const existingEmail = await this.prisma.user.findFirst({
+          where: {
+            email: updateUserDto.email,
+            NOT: { id }, // Exclude current user
+          },
+        });
+        if (existingEmail) {
+          dbErrors.push({
+            field: 'email',
+            errors: ['Email is already taken'],
+          });
+        }
+      }
+
+      if (updateUserDto.absherMobile) {
+        const formattedAbsherMobile = formatMobileNumber(
+          updateUserDto.absherMobile,
+        );
+        const existingAbsherMobile = await this.prisma.user.findFirst({
+          where: {
+            absherMobile: formattedAbsherMobile,
+            NOT: { id }, // Exclude current user
+          },
+        });
+        if (existingAbsherMobile) {
+          dbErrors.push({
+            field: 'absherMobile',
+            errors: ['Absher mobile number is already taken'],
+          });
+        }
+      }
+
+      if (updateUserDto.contactMobile) {
+        const formattedContactMobile = formatMobileNumber(
+          updateUserDto.contactMobile,
+        );
+        const existingContactMobile = await this.prisma.user.findFirst({
+          where: {
+            contactMobile: formattedContactMobile,
+            NOT: { id }, // Exclude current user
+          },
+        });
+        if (existingContactMobile) {
+          dbErrors.push({
+            field: 'contactMobile',
+            errors: ['Contact mobile number is already taken'],
+          });
+        }
+      }
+
+      // Return validation errors if any
+      if (dbErrors.length > 0) {
+        throw new BadRequestException({
+          message: 'Database validation failed',
+          error: 'Bad Request',
+          statusCode: 400,
+          errors: dbErrors,
+        });
+      }
+
       // Prepare update data
       const updateData = {
         ...updateUserDto,
-        absherMobile: formatMobileNumber(updateUserDto.absherMobile),
-        contactMobile: formatMobileNumber(updateUserDto.contactMobile),
+        absherMobile: updateUserDto.absherMobile
+          ? formatMobileNumber(updateUserDto.absherMobile)
+          : undefined,
+        contactMobile: updateUserDto.contactMobile
+          ? formatMobileNumber(updateUserDto.contactMobile)
+          : undefined,
       };
 
       // Handle password hashing if provided
@@ -363,6 +529,8 @@ export class UsersService {
 
       return successResponse(updatedUser, 'User updated successfully', 200);
     } catch (error) {
+      // Handle Prisma errors for any missed unique constraints
+
       handlePrismaError(error);
     }
   }
@@ -451,13 +619,116 @@ export class UsersService {
 
   async updateProfile(userId: number, updateUserDto: UpdateUserDto) {
     try {
-      const updateData = { ...updateUserDto };
+      // Pre-validation checks for unique fields
+      const dbErrors: { field: string; errors: string[] }[] = [];
+
+      // Check for unique constraints before updating
+      if (updateUserDto.nationalId) {
+        const existingNationalId = await this.prisma.user.findFirst({
+          where: {
+            nationalId: updateUserDto.nationalId,
+            NOT: { id: userId }, // Exclude current user
+          },
+        });
+        if (existingNationalId) {
+          dbErrors.push({
+            field: 'nationalId',
+            errors: ['National ID is already taken'],
+          });
+        }
+      }
+
+      if (updateUserDto.personalEmail) {
+        const existingPersonalEmail = await this.prisma.user.findFirst({
+          where: {
+            personalEmail: updateUserDto.personalEmail,
+            NOT: { id: userId }, // Exclude current user
+          },
+        });
+        if (existingPersonalEmail) {
+          dbErrors.push({
+            field: 'personalEmail',
+            errors: ['Personal email is already taken'],
+          });
+        }
+      }
+
+      if (updateUserDto.email) {
+        const existingEmail = await this.prisma.user.findFirst({
+          where: {
+            email: updateUserDto.email,
+            NOT: { id: userId }, // Exclude current user
+          },
+        });
+        if (existingEmail) {
+          dbErrors.push({
+            field: 'email',
+            errors: ['Email is already taken'],
+          });
+        }
+      }
+
+      if (updateUserDto.absherMobile) {
+        const formattedAbsherMobile = formatMobileNumber(
+          updateUserDto.absherMobile,
+        );
+        const existingAbsherMobile = await this.prisma.user.findFirst({
+          where: {
+            absherMobile: formattedAbsherMobile,
+            NOT: { id: userId }, // Exclude current user
+          },
+        });
+        if (existingAbsherMobile) {
+          dbErrors.push({
+            field: 'absherMobile',
+            errors: ['Absher mobile number is already taken'],
+          });
+        }
+      }
+
+      if (updateUserDto.contactMobile) {
+        const formattedContactMobile = formatMobileNumber(
+          updateUserDto.contactMobile,
+        );
+        const existingContactMobile = await this.prisma.user.findFirst({
+          where: {
+            contactMobile: formattedContactMobile,
+            NOT: { id: userId }, // Exclude current user
+          },
+        });
+        if (existingContactMobile) {
+          dbErrors.push({
+            field: 'contactMobile',
+            errors: ['Contact mobile number is already taken'],
+          });
+        }
+      }
+
+      // Return validation errors if any
+      if (dbErrors.length > 0) {
+        throw new BadRequestException({
+          message: 'Database validation failed',
+          error: 'Bad Request',
+          statusCode: 400,
+          errors: dbErrors,
+        });
+      }
+
+      // Prepare update data
+      const updateData = {
+        ...updateUserDto,
+        absherMobile: updateUserDto.absherMobile
+          ? formatMobileNumber(updateUserDto.absherMobile)
+          : undefined,
+        contactMobile: updateUserDto.contactMobile
+          ? formatMobileNumber(updateUserDto.contactMobile)
+          : undefined,
+      };
 
       // Hash password if provided
       if (updateUserDto.password) {
         updateData.password = await bcrypt.hash(updateUserDto.password, 10);
       }
-
       const updatedUser = await this.prisma.user.update({
         where: { id: userId },
         data: updateData,
@@ -469,6 +740,7 @@ export class UsersService {
               location: true,
             },
           },
+          employeeRoles: true,
         },
       });
 
@@ -478,6 +750,8 @@ export class UsersService {
 
       return successResponse(profile, 'Profile updated successfully', 200);
     } catch (error) {
+      // Handle Prisma errors for any missed unique constraints
+
       handlePrismaError(error);
     }
   }
