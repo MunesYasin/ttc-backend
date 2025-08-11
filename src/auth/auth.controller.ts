@@ -27,7 +27,7 @@ export class AuthController {
     res.cookie('access_token', access_token, {
       httpOnly: true,
       secure: true, // true in production (HTTPS)
-      sameSite: 'lax', // or 'strict' / 'none'
+      sameSite: 'none', // Required for cross-origin requests
       maxAge: 1000 * 60 * 60 * 24, // 1 day
     });
 
