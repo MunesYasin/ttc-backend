@@ -7,9 +7,16 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableCors({
     origin: 'https://timecraft-flow.vercel.app',
-    credentials: true, // allow cookies or Authorization headers
+    credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Accept',
+      'api',
+      'program',
+      'lang',
+    ],
   });
 
   app.useGlobalPipes(
