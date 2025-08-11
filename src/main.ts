@@ -7,10 +7,16 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
+  // Set global prefix for all routes except health check
+  app.setGlobalPrefix('api', {
+    exclude: ['/health', '/'],
+  });
+  
   // Enable CORS with production-ready configuration
   app.enableCors({
     origin: [
       'http://localhost:8080',
+      'http://localhost:3000',
       'https://timecraft-flow.vercel.app',
       process.env.FRONTEND_URL, // Add environment variable for frontend URL
     ].filter(Boolean), // Remove undefined values
@@ -23,7 +29,13 @@ async function bootstrap() {
       'api',
       'program',
       'lang',
+      'X-Requested-With',
+      'Access-Control-Allow-Origin',
+      'Access-Control-Allow-Headers',
+      'Access-Control-Allow-Methods',
     ],
+    exposedHeaders: ['Set-Cookie'],
+    optionsSuccessStatus: 200, // For legacy browser support
   });
 
   // Global exception filter for better error handling
