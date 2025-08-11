@@ -1,0 +1,64 @@
+# Railway ignore file - exclude unnecessary files from deployment
+
+# Dependencies
+node_modules/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# Build outputs (will be rebuilt)
+dist/
+build/
+
+# Environment files (these should be set in Railway dashboard)
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Test files
+test/
+*.test.ts
+*.spec.ts
+
+# Backup files
+backup.sql
+*.backup
+
+# Documentation
+README.md
+TTC_README.md
+docs/
+
+# Git
+.git/
+.gitignore
