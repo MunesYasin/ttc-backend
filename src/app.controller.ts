@@ -12,20 +12,10 @@ export class AppController {
 
   @Get('health')
   getHealth() {
-    try {
-      return {
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV || 'development',
-        uptime: Math.floor(process.uptime()),
-        port: process.env.PORT || 3000,
-      };
-    } catch {
-      return {
-        status: 'error',
-        timestamp: new Date().toISOString(),
-        error: 'Health check failed',
-      };
-    }
+    return {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+    };
   }
 }
