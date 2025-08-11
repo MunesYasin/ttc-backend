@@ -26,8 +26,8 @@ export class AuthController {
     // Set the token as HTTP-only cookie
     res.cookie('access_token', access_token, {
       httpOnly: true,
-      secure: true, // true in production (HTTPS)
-      sameSite: 'none', // Required for cross-origin requests
+      secure: process.env.NODE_ENV === 'production', // true in production (HTTPS)
+      sameSite: 'lax', // or 'strict' / 'none'
       maxAge: 1000 * 60 * 60 * 24, // 1 day
     });
 
@@ -38,8 +38,8 @@ export class AuthController {
   logout(@Res({ passthrough: true }) res: Response) {
     res.clearCookie('access_token', {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none',
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
     });
 
     return {

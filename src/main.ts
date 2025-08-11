@@ -6,7 +6,10 @@ import * as cookieParser from 'cookie-parser';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableCors({
-    origin: 'https://timecraft-flow.vercel.app',
+    origin: [
+      'http://localhost:8080',
+      'https://timecraft-flow.vercel.app', // Remove trailing slash
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: [
