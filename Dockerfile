@@ -1,17 +1,27 @@
-# Build stage
-FROM node:18-alpine AS builder
+# Use a lighter base image
+FROM node:18-slim AS builder
 
 # Set working directory
 WORKDIR /app
 
-# Install build dependencies
-RUN apk add --no-cache python3 make g++
+# Set memory limit and optimization flags
+ENV NODE_OPTIONS="--max-old-space-size=1024"
+ENV NPM_CONFIG_LOGLEVEL=warn
+
+# Install build dependencies for native modules
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy package files first for better caching
 COPY package*.json ./
+COPY .npmrc ./
 
 # Install ALL dependencies (including dev dependencies for build)
-RUN npm ci
+# Use --maxsockets=1 to reduce memory usage during install
+RUN npm ci --maxsockets=1 --prefer-offline
 
 # Copy prisma schema
 COPY prisma ./prisma/
@@ -25,23 +35,21 @@ COPY . .
 # Build the application
 RUN npm run build
 
-# Production stage
-FROM node:18-alpine AS production
+# Production stage - use even lighter image
+FROM node:18-slim AS production
 
 WORKDIR /app
 
-# Install dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init
-
 # Create non-root user
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nestjs -u 1001
+RUN groupadd -g 1001 nodejs && \
+    useradd -r -u 1001 -g nodejs nestjs
 
 # Copy package files
 COPY package*.json ./
+COPY .npmrc ./
 
 # Install only production dependencies
-RUN npm ci --only=production && npm cache clean --force
+RUN npm ci --only=production --maxsockets=1 --prefer-offline && npm cache clean --force
 
 # Copy built application and prisma
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
@@ -51,9 +59,6 @@ COPY --from=builder --chown=nestjs:nodejs /app/node_modules/.prisma ./node_modul
 USER nestjs
 
 EXPOSE 3000
-
-# Use dumb-init to handle signals properly
-ENTRYPOINT ["dumb-init", "--"]
 
 # Start the application
 CMD ["node", "dist/main"]
