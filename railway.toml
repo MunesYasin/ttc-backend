@@ -5,28 +5,8 @@ builder = "nixpacks"
 providers = ["node"]
 nodeVersion = "18"
 
-[build.nixpacksConfig.variables]
-NODE_OPTIONS = "--max-old-space-size=512"
-NPM_CONFIG_LOGLEVEL = "error"
-
-[build.nixpacksConfig.phases.setup]
-nixPkgs = ["nodejs-18_x", "npm"]
-
-[build.nixpacksConfig.phases.install]
-cmds = ["npm ci --omit=dev --omit=optional --maxsockets=1"]
-
-[build.nixpacksConfig.phases.build]
-cmds = [
-  "npx prisma generate",
-  "npm install --save-dev @nestjs/cli typescript @swc/core --maxsockets=1 --no-audit --no-fund",
-  "npm run build",
-  "npm prune --production"
-]
-
-[build.nixpacksConfig.phases.start]
-cmd = "node dist/main"
-
 [deploy]
+startCommand = "npm run start:prod"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"

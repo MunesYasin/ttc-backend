@@ -2,24 +2,15 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import * as cookieParser from 'cookie-parser';
-import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
-  // Set global prefix for all routes except health check
-  app.setGlobalPrefix('api', {
-    exclude: ['/health', '/'],
-  });
-  
-  // Enable CORS with production-ready configuration
   app.enableCors({
     origin: [
       'http://localhost:8080',
       'http://localhost:3000',
       'https://timecraft-flow.vercel.app',
-      process.env.FRONTEND_URL, // Add environment variable for frontend URL
-    ].filter(Boolean), // Remove undefined values
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: [
@@ -35,33 +26,17 @@ async function bootstrap() {
       'Access-Control-Allow-Methods',
     ],
     exposedHeaders: ['Set-Cookie'],
-    optionsSuccessStatus: 200, // For legacy browser support
+    optionsSuccessStatus: 200,
   });
 
-  // Global exception filter for better error handling
-  app.useGlobalFilters(new AllExceptionsFilter());
-
-  // Global validation pipe
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       transform: true,
-      forbidNonWhitelisted: true,
     }),
-  );
-
-  // Cookie parser
+  ); // 👈 Add this line
   app.use(cookieParser());
 
-  // Get port from environment or default to 3000
-  const port = process.env.PORT || 3000;
-  
-  console.log(`🚀 Application is running on: http://localhost:${port}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(
-    `🗄️ Database: ${process.env.DATABASE_URL ? 'Connected' : 'Not configured'}`,
-  );
-  
-  await app.listen(port);
+  await app.listen(3000);
 }
 void bootstrap();
