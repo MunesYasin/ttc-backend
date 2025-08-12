@@ -82,7 +82,7 @@ model EmployeeRoles{
   name    String @unique
   roleTasks   RoleTasks[]
   users   User[]
-   @@map("employeeRoles")
+   @@map("employeeroles")
 
 }
 
@@ -91,7 +91,7 @@ model RoleTasks{
   name                String
   employeeRolesId     Int
   employeeRoles       EmployeeRoles     @relation(fields: [employeeRolesId], references: [id])
-   @@map("roleTasks")
+   @@map("roletasks")
 
 }
 
@@ -112,7 +112,7 @@ model AttendanceRecord {
   @@unique([userId, date])
   @@index([userId])
   @@index([date])
-   @@map("attendanceRecord")
+   @@map("attendancerecord")
 
 }
 
@@ -145,7 +145,7 @@ model AttendanceTask {
   @@unique([attendanceRecordId, taskId])
   @@index([attendanceRecordId])
   @@index([taskId])
-   @@map("attendanceTask")
+   @@map("attendancetask")
 
 }
 
@@ -161,7 +161,7 @@ model DailyReport {
   @@unique([companyId, date])
   @@index([companyId])
   @@index([date])
-   @@map("dailyReport")
+   @@map("dailyreport")
 
 }
 

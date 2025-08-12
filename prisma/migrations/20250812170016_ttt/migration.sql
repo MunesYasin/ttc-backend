@@ -79,16 +79,16 @@ CREATE TABLE `company` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `employeeRoles` (
+CREATE TABLE `employeeroles` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `name` VARCHAR(191) NOT NULL,
 
-    UNIQUE INDEX `employeeRoles_name_key`(`name`),
+    UNIQUE INDEX `employeeroles_name_key`(`name`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `roleTasks` (
+CREATE TABLE `roletasks` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `name` VARCHAR(191) NOT NULL,
     `employeeRolesId` INTEGER NOT NULL,
@@ -97,7 +97,7 @@ CREATE TABLE `roleTasks` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `attendanceRecord` (
+CREATE TABLE `attendancerecord` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `userId` INTEGER NOT NULL,
     `date` DATE NOT NULL,
@@ -107,9 +107,9 @@ CREATE TABLE `attendanceRecord` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    INDEX `attendanceRecord_userId_idx`(`userId`),
-    INDEX `attendanceRecord_date_idx`(`date`),
-    UNIQUE INDEX `attendanceRecord_userId_date_key`(`userId`, `date`),
+    INDEX `attendancerecord_userId_idx`(`userId`),
+    INDEX `attendancerecord_date_idx`(`date`),
+    UNIQUE INDEX `attendancerecord_userId_date_key`(`userId`, `date`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -128,20 +128,20 @@ CREATE TABLE `task` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `attendanceTask` (
+CREATE TABLE `attendancetask` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `attendanceRecordId` INTEGER NOT NULL,
     `taskId` INTEGER NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
-    INDEX `attendanceTask_attendanceRecordId_idx`(`attendanceRecordId`),
-    INDEX `attendanceTask_taskId_idx`(`taskId`),
-    UNIQUE INDEX `attendanceTask_attendanceRecordId_taskId_key`(`attendanceRecordId`, `taskId`),
+    INDEX `attendancetask_attendanceRecordId_idx`(`attendanceRecordId`),
+    INDEX `attendancetask_taskId_idx`(`taskId`),
+    UNIQUE INDEX `attendancetask_attendanceRecordId_taskId_key`(`attendanceRecordId`, `taskId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `dailyReport` (
+CREATE TABLE `dailyreport` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `companyId` INTEGER NOT NULL,
     `date` DATE NOT NULL,
@@ -149,9 +149,9 @@ CREATE TABLE `dailyReport` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    INDEX `dailyReport_companyId_idx`(`companyId`),
-    INDEX `dailyReport_date_idx`(`date`),
-    UNIQUE INDEX `dailyReport_companyId_date_key`(`companyId`, `date`),
+    INDEX `dailyreport_companyId_idx`(`companyId`),
+    INDEX `dailyreport_date_idx`(`date`),
+    UNIQUE INDEX `dailyreport_companyId_date_key`(`companyId`, `date`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -159,19 +159,19 @@ CREATE TABLE `dailyReport` (
 ALTER TABLE `user` ADD CONSTRAINT `user_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `company`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `user` ADD CONSTRAINT `user_employeeRolesId_fkey` FOREIGN KEY (`employeeRolesId`) REFERENCES `employeeRoles`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `user` ADD CONSTRAINT `user_employeeRolesId_fkey` FOREIGN KEY (`employeeRolesId`) REFERENCES `employeeroles`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `roleTasks` ADD CONSTRAINT `roleTasks_employeeRolesId_fkey` FOREIGN KEY (`employeeRolesId`) REFERENCES `employeeRoles`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `roletasks` ADD CONSTRAINT `roletasks_employeeRolesId_fkey` FOREIGN KEY (`employeeRolesId`) REFERENCES `employeeroles`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `attendanceRecord` ADD CONSTRAINT `attendanceRecord_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `user`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `attendancerecord` ADD CONSTRAINT `attendancerecord_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `user`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `attendanceTask` ADD CONSTRAINT `attendanceTask_attendanceRecordId_fkey` FOREIGN KEY (`attendanceRecordId`) REFERENCES `attendanceRecord`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `attendancetask` ADD CONSTRAINT `attendancetask_attendanceRecordId_fkey` FOREIGN KEY (`attendanceRecordId`) REFERENCES `attendancerecord`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `attendanceTask` ADD CONSTRAINT `attendanceTask_taskId_fkey` FOREIGN KEY (`taskId`) REFERENCES `task`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `attendancetask` ADD CONSTRAINT `attendancetask_taskId_fkey` FOREIGN KEY (`taskId`) REFERENCES `task`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `dailyReport` ADD CONSTRAINT `dailyReport_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `company`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `dailyreport` ADD CONSTRAINT `dailyreport_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `company`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
