@@ -52,6 +52,22 @@ model User {
 model Company {
   id        Int      @id @default(autoincrement())
   name      String
+  notionalId  String  @unique
+  commercialRegistrationNumber  String @unique
+  taxNumber String @unique
+  address String @unique
+  nameOfAuthorizedSignatory String @unique
+  emailOfAuthorizedSignatory String @unique
+  mobileOfAuthorizedSignatory String @unique
+  hrManager1Name String @unique
+  hrManager1Email String @unique
+  hrManager1Mobile String @unique
+  hrManager2Name String @unique
+  hrManager2Email String @unique
+  hrManager2Mobile String @unique
+  accountantName String @unique
+  accountantEmail String @unique
+  accountantMobile String @unique
   location   String  @default("الرياض")
   users     User[]
   reports   DailyReport[]

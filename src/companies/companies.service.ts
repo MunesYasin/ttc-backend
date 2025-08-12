@@ -12,6 +12,8 @@ import {
   createPaginatedResult,
 } from '../common/helpers/pagination.helper';
 import { calculateDateRanges } from '../common/helpers/date.helper';
+import { formatMobileNumber } from '../common/helpers/format-mobile-number';
+import { normalizeKsaMobile } from '../common/helpers/normalize-key-mobile';
 
 @Injectable()
 export class CompaniesService {
@@ -22,8 +24,19 @@ export class CompaniesService {
 
   async create(createCompanyDto: CreateCompanyDto) {
     try {
+      // Format mobile numbers before creating
+      const formattedData = {
+        ...createCompanyDto,
+        mobileOfAuthorizedSignatory: formatMobileNumber(
+          createCompanyDto.mobileOfAuthorizedSignatory,
+        ),
+        hrManager1Mobile: formatMobileNumber(createCompanyDto.hrManager1Mobile),
+        hrManager2Mobile: formatMobileNumber(createCompanyDto.hrManager2Mobile),
+        accountantMobile: formatMobileNumber(createCompanyDto.accountantMobile),
+      };
+
       const company = await this.prisma.company.create({
-        data: createCompanyDto,
+        data: formattedData,
       });
 
       return successResponse(company, 'Company created successfully', 201);
@@ -96,6 +109,17 @@ export class CompaniesService {
         totalCompanies,
       );
 
+      // Format mobile numbers in the companies data
+      const formattedCompanies = paginatedResult.data.map((company) => ({
+        ...company,
+        mobileOfAuthorizedSignatory: normalizeKsaMobile(
+          company.mobileOfAuthorizedSignatory,
+        ),
+        hrManager1Mobile: normalizeKsaMobile(company.hrManager1Mobile),
+        hrManager2Mobile: normalizeKsaMobile(company.hrManager2Mobile),
+        accountantMobile: normalizeKsaMobile(company.accountantMobile),
+      }));
+
       // Calculate average employees per company
       const avgEmployeesPerCompany =
         totalCompanies > 0
@@ -106,7 +130,7 @@ export class CompaniesService {
         totalCompanies: totalCompanies,
         totalEmployees: totalEmployees,
         avgEmployeesPerCompany: avgEmployeesPerCompany,
-        companies: paginatedResult.data,
+        companies: formattedCompanies,
         pagination: paginatedResult.pagination,
       };
 
@@ -128,7 +152,26 @@ export class CompaniesService {
         id,
       );
 
-      return successResponse(company, 'Company retrieved successfully', 200);
+      if (!company) {
+        return successResponse(null, 'Company not found', 404);
+      }
+
+      // Normalize mobile numbers for display
+      const formattedCompany = {
+        ...company,
+        mobileOfAuthorizedSignatory: normalizeKsaMobile(
+          company.mobileOfAuthorizedSignatory,
+        ),
+        hrManager1Mobile: normalizeKsaMobile(company.hrManager1Mobile),
+        hrManager2Mobile: normalizeKsaMobile(company.hrManager2Mobile),
+        accountantMobile: normalizeKsaMobile(company.accountantMobile),
+      };
+
+      return successResponse(
+        formattedCompany,
+        'Company retrieved successfully',
+        200,
+      );
     } catch (error) {
       handlePrismaError(error);
     }
@@ -178,6 +221,24 @@ export class CompaniesService {
       const companyDetails = {
         id: company.id,
         name: company.name,
+        notionalId: company.notionalId,
+        commercialRegistrationNumber: company.commercialRegistrationNumber,
+        taxNumber: company.taxNumber,
+        address: company.address,
+        nameOfAuthorizedSignatory: company.nameOfAuthorizedSignatory,
+        emailOfAuthorizedSignatory: company.emailOfAuthorizedSignatory,
+        mobileOfAuthorizedSignatory: normalizeKsaMobile(
+          company.mobileOfAuthorizedSignatory,
+        ),
+        hrManager1Name: company.hrManager1Name,
+        hrManager1Email: company.hrManager1Email,
+        hrManager1Mobile: normalizeKsaMobile(company.hrManager1Mobile),
+        hrManager2Name: company.hrManager2Name,
+        hrManager2Email: company.hrManager2Email,
+        hrManager2Mobile: normalizeKsaMobile(company.hrManager2Mobile),
+        accountantName: company.accountantName,
+        accountantEmail: company.accountantEmail,
+        accountantMobile: normalizeKsaMobile(company.accountantMobile),
         location: company.location,
         createdAt: company.createdAt,
         updatedAt: company.updatedAt,
@@ -522,9 +583,27 @@ export class CompaniesService {
       // Use ensure method which already validates access and fetches company
       // this.companyAccessPolicy.ensureUserCanManageCompany(user, id);
 
+      // Format mobile numbers before updating
+      const formattedData = {
+        ...updateCompanyDto,
+        mobileOfAuthorizedSignatory:
+          updateCompanyDto.mobileOfAuthorizedSignatory
+            ? formatMobileNumber(updateCompanyDto.mobileOfAuthorizedSignatory)
+            : undefined,
+        hrManager1Mobile: updateCompanyDto.hrManager1Mobile
+          ? formatMobileNumber(updateCompanyDto.hrManager1Mobile)
+          : undefined,
+        hrManager2Mobile: updateCompanyDto.hrManager2Mobile
+          ? formatMobileNumber(updateCompanyDto.hrManager2Mobile)
+          : undefined,
+        accountantMobile: updateCompanyDto.accountantMobile
+          ? formatMobileNumber(updateCompanyDto.accountantMobile)
+          : undefined,
+      };
+
       const company = await this.prisma.company.update({
         where: { id },
-        data: updateCompanyDto,
+        data: formattedData,
         include: {
           users: true,
         },

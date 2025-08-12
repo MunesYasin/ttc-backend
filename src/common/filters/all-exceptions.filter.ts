@@ -23,9 +23,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
-      message = typeof exceptionResponse === 'string' 
-        ? exceptionResponse 
-        : (exceptionResponse as any).message || message;
+      message =
+        typeof exceptionResponse === 'string'
+          ? exceptionResponse
+          : (exceptionResponse as any).message || message;
     }
 
     // Log the error for debugging
@@ -35,7 +36,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
     );
 
     // Log database connection errors specifically
-    if (exception instanceof Error && exception.message.includes('ECONNREFUSED')) {
+    if (
+      exception instanceof Error &&
+      exception.message.includes('ECONNREFUSED')
+    ) {
       this.logger.error('Database connection refused. Check DATABASE_URL');
     }
 

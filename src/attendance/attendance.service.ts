@@ -510,7 +510,7 @@ export class AttendanceService {
         });
 
         createdTasks.push(task);
-        
+
         console.log(
           `Task ${i + 1}: ${selectedTasks[i].name} - ${taskDuration} hours`,
         );

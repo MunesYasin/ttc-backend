@@ -60,11 +60,7 @@ export class EmployeeRolesService {
       ],
     });
 
-    return successResponse(
-      roleTasks,
-      'Role tasks retrieved successfully',
-      200,
-    );
+    return successResponse(roleTasks, 'Role tasks retrieved successfully', 200);
   }
 
   async getRoleTasksByEmployeeRoleId(employeeRoleId: number) {

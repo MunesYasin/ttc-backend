@@ -5,7 +5,7 @@ import {
 } from 'class-validator';
 
 export function IsKsaMobile(validationOptions?: ValidationOptions) {
-  return function (object: Object, propertyName: string) {
+  return function (object: object, propertyName: string) {
     registerDecorator({
       name: 'isKsaMobile',
       target: object.constructor,

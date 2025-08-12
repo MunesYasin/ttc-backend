@@ -715,7 +715,7 @@ export class DashboardService {
         // Get the first attendanceTask to extract user info (tasks can have multiple but we'll show the first user)
         const firstAttendance = task.attendanceTasks[0];
         const user = firstAttendance?.attendanceRecord?.user;
-        
+
         return {
           id: task.id,
           title: task.title,
@@ -928,7 +928,7 @@ export class DashboardService {
         // Get the first attendanceTask to extract user info (tasks can have multiple but we'll show the first user)
         const firstAttendance = task.attendanceTasks[0];
         const user = firstAttendance?.attendanceRecord?.user;
-        
+
         return {
           id: task.id,
           title: task.title,

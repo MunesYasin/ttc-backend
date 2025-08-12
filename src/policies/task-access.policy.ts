@@ -36,15 +36,15 @@ export class TaskAccessPolicy {
     // Check if the user has access to any of the attendance records linked to this task
     const hasAccess = task.attendanceTasks.some((attendanceTask) => {
       const attendanceUser = attendanceTask.attendanceRecord.user;
-      
+
       if (user.role === Role.EMPLOYEE) {
         return attendanceUser.id === user.id;
       }
-      
+
       if (user.role === Role.COMPANY_ADMIN) {
         return attendanceUser.companyId === user.companyId;
       }
-      
+
       return false;
     });
 
@@ -105,15 +105,15 @@ export class TaskAccessPolicy {
     // Check if the user has access to any of the attendance records linked to this task
     const hasAccess = task.attendanceTasks.some((attendanceTask) => {
       const attendanceUser = attendanceTask.attendanceRecord.user;
-      
+
       if (user.role === Role.EMPLOYEE) {
         return attendanceUser.id === user.id;
       }
-      
+
       if (user.role === Role.COMPANY_ADMIN) {
         return attendanceUser.companyId === user.companyId;
       }
-      
+
       return false;
     });
 

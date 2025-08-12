@@ -941,6 +941,22 @@ async function main() {
     company1 = await prisma.company.create({
       data: {
         name: 'Tech Solutions Inc.',
+        notionalId: 'TSI-2024-001',
+        commercialRegistrationNumber: '1010000001',
+        taxNumber: '300000000100003',
+        address: 'شارع الملك فهد، الرياض 12345، المملكة العربية السعودية',
+        nameOfAuthorizedSignatory: 'أحمد محمد العبدالله',
+        emailOfAuthorizedSignatory: 'ahmed.abdullah@techsolutions.com',
+        mobileOfAuthorizedSignatory: '+966501234567',
+        hrManager1Name: 'فاطمة أحمد السالم',
+        hrManager1Email: 'fatima.salem@techsolutions.com',
+        hrManager1Mobile: '+966502345678',
+        hrManager2Name: 'خالد عبدالرحمن المحمد',
+        hrManager2Email: 'khalid.mohammed@techsolutions.com',
+        hrManager2Mobile: '+966503456789',
+        accountantName: 'سارة عبدالله الخالد',
+        accountantEmail: 'sara.khalid@techsolutions.com',
+        accountantMobile: '+966504567890',
         location: 'الرياض',
       },
     });
@@ -954,7 +970,23 @@ async function main() {
     company2 = await prisma.company.create({
       data: {
         name: 'Creative Marketing Agency',
-        location: 'الرياض',
+        notionalId: 'CMA-2024-002',
+        commercialRegistrationNumber: '1010000002',
+        taxNumber: '300000000100004',
+        address: 'شارع الأمير سلطان، جدة 21422، المملكة العربية السعودية',
+        nameOfAuthorizedSignatory: 'محمد عبدالله الحربي',
+        emailOfAuthorizedSignatory: 'mohammed.harbi@creativemarketing.com',
+        mobileOfAuthorizedSignatory: '+966505678901',
+        hrManager1Name: 'نورا سعد الزهراني',
+        hrManager1Email: 'nora.zahrani@creativemarketing.com',
+        hrManager1Mobile: '+966506789012',
+        hrManager2Name: 'عبدالرحمن فهد القحطاني',
+        hrManager2Email: 'abdulrahman.qahtani@creativemarketing.com',
+        hrManager2Mobile: '+966507890123',
+        accountantName: 'هدى محمد الغامدي',
+        accountantEmail: 'huda.ghamdi@creativemarketing.com',
+        accountantMobile: '+966508901234',
+        location: 'جدة',
       },
     });
   }
