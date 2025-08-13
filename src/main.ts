@@ -9,7 +9,7 @@ async function bootstrap() {
 
   // Enable CORS with broad configuration for debugging
   app.enableCors({
-    origin: true, // Allow all origins temporarily for debugging
+    origin: ['https://timecraft-flow.vercel.app', 'http://localhost:8080'], // Allow all origins temporarily for debugging
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
     allowedHeaders: '*', // Allow all headers
