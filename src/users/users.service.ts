@@ -124,7 +124,7 @@ export class UsersService {
       const userData = {
         // Basic fields
         name: createUserDto.name,
-        email: createUserDto.personalEmail || createUserDto.email, // Use personalEmail as default email
+        email: createUserDto.email, // Use personalEmail as default email
         password: hashedPassword,
         role: role,
         timezone: createUserDto.timezone || 'Asia/Riyadh',
