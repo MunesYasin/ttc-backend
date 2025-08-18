@@ -84,6 +84,7 @@ export class TasksService {
     endDate?: Date,
     page: number = 1,
     limit: number = 10,
+    search?: string,
   ) {
     try {
       // Normalize pagination parameters
@@ -95,6 +96,9 @@ export class TasksService {
         date?: {
           gte?: Date;
           lte?: Date;
+        };
+        title?: {
+          contains: string;
         };
       } = {};
 
@@ -126,6 +130,13 @@ export class TasksService {
         where.date = {};
         if (startDate) where.date.gte = startDate;
         if (endDate) where.date.lte = endDate;
+      }
+
+      // Add search functionality by task title
+      if (search && search.trim()) {
+        where.title = {
+          contains: search.trim(),
+        };
       }
 
       // Calculate pagination skip

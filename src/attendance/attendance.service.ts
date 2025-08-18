@@ -172,6 +172,7 @@ export class AttendanceService {
     endDate?: Date,
     page: number = 1,
     limit: number = 10,
+    search?: string,
   ) {
     try {
       // Normalize pagination parameters
@@ -186,6 +187,13 @@ export class AttendanceService {
         if (startDate) where.date.gte = startDate;
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         if (endDate) where.date.lte = endDate;
+      }
+
+      // Add search functionality by note
+      if (search && search.trim()) {
+        where.note = {
+          contains: search.trim(),
+        };
       }
 
       // Calculate pagination skip

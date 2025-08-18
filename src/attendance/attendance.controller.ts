@@ -44,6 +44,7 @@ export class AttendanceController {
     @Query('endDate') endDate?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('search') search?: string,
   ) {
     const start = startDate ? new Date(startDate) : undefined;
     const end = endDate ? new Date(endDate) : undefined;
@@ -58,6 +59,7 @@ export class AttendanceController {
       end,
       normalizedPage,
       normalizedLimit,
+      search,
     );
   }
 

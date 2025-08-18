@@ -12,7 +12,7 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { TasksService } from './tasks.service';
-import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
+import { CreateTaskDto, UpdateTaskDto, TaskQueryDto } from './dto/task.dto';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
@@ -35,18 +35,19 @@ export class TasksController {
 
   @Get('my-tasks')
   @Roles(Role.EMPLOYEE, Role.COMPANY_ADMIN, Role.SUPER_ADMIN)
-  getMyTasks(
-    @CurrentUser() user: User,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-  ) {
-    const start = startDate ? new Date(startDate) : undefined;
-    const end = endDate ? new Date(endDate) : undefined;
-    const pageNum = page ? parseInt(page) : 1;
-    const limitNum = limit ? parseInt(limit) : 10;
-    return this.tasksService.findByUser(user, start, end, pageNum, limitNum);
+  getMyTasks(@CurrentUser() user: User, @Query() query: TaskQueryDto) {
+    const start = query.startDate ? new Date(query.startDate) : undefined;
+    const end = query.endDate ? new Date(query.endDate) : undefined;
+    const pageNum = query.page || 1;
+    const limitNum = query.limit || 10;
+    return this.tasksService.findByUser(
+      user,
+      start,
+      end,
+      pageNum,
+      limitNum,
+      query.search,
+    );
   }
 
   @Get('my-tasks/stats')

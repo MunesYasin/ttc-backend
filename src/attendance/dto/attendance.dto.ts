@@ -5,12 +5,20 @@ export class ClockInDto {
   @IsOptional()
   @IsString()
   note?: string;
+
+  @IsOptional()
+  @IsString()
+  timezone?: string;
 }
 
 export class ClockOutDto {
   @IsOptional()
   @IsString()
   note?: string;
+
+  @IsOptional()
+  @IsString()
+  timezone?: string;
 }
 
 export class CreateAttendanceDto {
