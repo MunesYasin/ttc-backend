@@ -1,4 +1,8 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCompanyDto, UpdateCompanyDto } from './dto/company.dto';
 import type { User } from '@prisma/client';
@@ -24,6 +28,247 @@ export class CompaniesService {
 
   async create(createCompanyDto: CreateCompanyDto) {
     try {
+      // Database validation errors array
+      const dbErrors: { field: string; errors: string[] }[] = [];
+
+      // If parentCompanyId is provided, validate that the parent company exists
+      if (createCompanyDto.parentCompanyId) {
+        const parentCompany = await this.prisma.company.findUnique({
+          where: { id: createCompanyDto.parentCompanyId },
+        });
+
+        if (!parentCompany) {
+          dbErrors.push({
+            field: 'parentCompanyId',
+            errors: ['Parent company not found'],
+          });
+        }
+      }
+
+      // Check for unique constraints before creating
+      if (createCompanyDto.notionalId) {
+        const existingNotionalId = await this.prisma.company.findUnique({
+          where: { notionalId: createCompanyDto.notionalId },
+        });
+        if (existingNotionalId) {
+          dbErrors.push({
+            field: 'notionalId',
+            errors: ['Notional ID is already taken'],
+          });
+        }
+      }
+
+      if (createCompanyDto.commercialRegistrationNumber) {
+        const existingCRN = await this.prisma.company.findUnique({
+          where: {
+            commercialRegistrationNumber:
+              createCompanyDto.commercialRegistrationNumber,
+          },
+        });
+        if (existingCRN) {
+          dbErrors.push({
+            field: 'commercialRegistrationNumber',
+            errors: ['Commercial Registration Number is already taken'],
+          });
+        }
+      }
+
+      if (createCompanyDto.taxNumber) {
+        const existingTaxNumber = await this.prisma.company.findUnique({
+          where: { taxNumber: createCompanyDto.taxNumber },
+        });
+        if (existingTaxNumber) {
+          dbErrors.push({
+            field: 'taxNumber',
+            errors: ['Tax Number is already taken'],
+          });
+        }
+      }
+
+      if (createCompanyDto.address) {
+        const existingAddress = await this.prisma.company.findUnique({
+          where: { address: createCompanyDto.address },
+        });
+        if (existingAddress) {
+          dbErrors.push({
+            field: 'address',
+            errors: ['Company address is already taken'],
+          });
+        }
+      }
+
+      if (createCompanyDto.nameOfAuthorizedSignatory) {
+        const existingSignatory = await this.prisma.company.findUnique({
+          where: {
+            nameOfAuthorizedSignatory:
+              createCompanyDto.nameOfAuthorizedSignatory,
+          },
+        });
+        if (existingSignatory) {
+          dbErrors.push({
+            field: 'nameOfAuthorizedSignatory',
+            errors: ['Authorized signatory name is already taken'],
+          });
+        }
+      }
+
+      if (createCompanyDto.emailOfAuthorizedSignatory) {
+        const existingSignatoryEmail = await this.prisma.company.findUnique({
+          where: {
+            emailOfAuthorizedSignatory:
+              createCompanyDto.emailOfAuthorizedSignatory,
+          },
+        });
+        if (existingSignatoryEmail) {
+          dbErrors.push({
+            field: 'emailOfAuthorizedSignatory',
+            errors: ['Authorized signatory email is already taken'],
+          });
+        }
+      }
+
+      if (createCompanyDto.mobileOfAuthorizedSignatory) {
+        const formattedSignatoryMobile = formatMobileNumber(
+          createCompanyDto.mobileOfAuthorizedSignatory,
+        );
+        const existingSignatoryMobile = await this.prisma.company.findUnique({
+          where: { mobileOfAuthorizedSignatory: formattedSignatoryMobile },
+        });
+        if (existingSignatoryMobile) {
+          dbErrors.push({
+            field: 'mobileOfAuthorizedSignatory',
+            errors: ['Authorized signatory mobile number is already taken'],
+          });
+        }
+      }
+
+      if (createCompanyDto.hrManager1Name) {
+        const existingHR1Name = await this.prisma.company.findUnique({
+          where: { hrManager1Name: createCompanyDto.hrManager1Name },
+        });
+        if (existingHR1Name) {
+          dbErrors.push({
+            field: 'hrManager1Name',
+            errors: ['HR Manager 1 name is already taken'],
+          });
+        }
+      }
+
+      if (createCompanyDto.hrManager1Email) {
+        const existingHR1Email = await this.prisma.company.findUnique({
+          where: { hrManager1Email: createCompanyDto.hrManager1Email },
+        });
+        if (existingHR1Email) {
+          dbErrors.push({
+            field: 'hrManager1Email',
+            errors: ['HR Manager 1 email is already taken'],
+          });
+        }
+      }
+
+      if (createCompanyDto.hrManager1Mobile) {
+        const formattedHR1Mobile = formatMobileNumber(
+          createCompanyDto.hrManager1Mobile,
+        );
+        const existingHR1Mobile = await this.prisma.company.findUnique({
+          where: { hrManager1Mobile: formattedHR1Mobile },
+        });
+        if (existingHR1Mobile) {
+          dbErrors.push({
+            field: 'hrManager1Mobile',
+            errors: ['HR Manager 1 mobile number is already taken'],
+          });
+        }
+      }
+
+      if (createCompanyDto.hrManager2Name) {
+        const existingHR2Name = await this.prisma.company.findUnique({
+          where: { hrManager2Name: createCompanyDto.hrManager2Name },
+        });
+        if (existingHR2Name) {
+          dbErrors.push({
+            field: 'hrManager2Name',
+            errors: ['HR Manager 2 name is already taken'],
+          });
+        }
+      }
+
+      if (createCompanyDto.hrManager2Email) {
+        const existingHR2Email = await this.prisma.company.findUnique({
+          where: { hrManager2Email: createCompanyDto.hrManager2Email },
+        });
+        if (existingHR2Email) {
+          dbErrors.push({
+            field: 'hrManager2Email',
+            errors: ['HR Manager 2 email is already taken'],
+          });
+        }
+      }
+
+      if (createCompanyDto.hrManager2Mobile) {
+        const formattedHR2Mobile = formatMobileNumber(
+          createCompanyDto.hrManager2Mobile,
+        );
+        const existingHR2Mobile = await this.prisma.company.findUnique({
+          where: { hrManager2Mobile: formattedHR2Mobile },
+        });
+        if (existingHR2Mobile) {
+          dbErrors.push({
+            field: 'hrManager2Mobile',
+            errors: ['HR Manager 2 mobile number is already taken'],
+          });
+        }
+      }
+
+      if (createCompanyDto.accountantName) {
+        const existingAccountantName = await this.prisma.company.findUnique({
+          where: { accountantName: createCompanyDto.accountantName },
+        });
+        if (existingAccountantName) {
+          dbErrors.push({
+            field: 'accountantName',
+            errors: ['Accountant name is already taken'],
+          });
+        }
+      }
+
+      if (createCompanyDto.accountantEmail) {
+        const existingAccountantEmail = await this.prisma.company.findUnique({
+          where: { accountantEmail: createCompanyDto.accountantEmail },
+        });
+        if (existingAccountantEmail) {
+          dbErrors.push({
+            field: 'accountantEmail',
+            errors: ['Accountant email is already taken'],
+          });
+        }
+      }
+
+      if (createCompanyDto.accountantMobile) {
+        const formattedAccountantMobile = formatMobileNumber(
+          createCompanyDto.accountantMobile,
+        );
+        const existingAccountantMobile = await this.prisma.company.findUnique({
+          where: { accountantMobile: formattedAccountantMobile },
+        });
+        if (existingAccountantMobile) {
+          dbErrors.push({
+            field: 'accountantMobile',
+            errors: ['Accountant mobile number is already taken'],
+          });
+        }
+      }
+
+      // If there are validation errors, throw them
+      if (dbErrors.length > 0) {
+        throw new BadRequestException({
+          message: 'Database validation failed',
+          error: 'Bad Request',
+          statusCode: 400,
+          errors: dbErrors,
+        });
+      }
+
       // Format mobile numbers before creating
       const formattedData = {
         ...createCompanyDto,
@@ -37,6 +282,20 @@ export class CompaniesService {
 
       const company = await this.prisma.company.create({
         data: formattedData,
+        include: {
+          parentCompany: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          subcompanies: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
       });
 
       return successResponse(company, 'Company created successfully', 201);
@@ -45,7 +304,12 @@ export class CompaniesService {
     }
   }
 
-  async findAll(page: number = 1, limit: number = 10, search?: string) {
+  async findAll(
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+    user?: User,
+  ) {
     try {
       // Normalize pagination parameters
       const { page: normalizedPage, limit: normalizedLimit } =
@@ -53,11 +317,7 @@ export class CompaniesService {
       const skip = calculateSkip(normalizedPage, normalizedLimit);
 
       // Build where condition with search
-      const whereCondition: {
-        name?: {
-          contains: string;
-        };
-      } = {};
+      let whereCondition: any = {};
 
       // Add search condition if search term is provided
       if (search && search.trim()) {
@@ -66,31 +326,49 @@ export class CompaniesService {
         };
       }
 
-      // Get total count of companies (with search filter)
+      // Add access control based on user role using policy
+      if (user) {
+        const accessFilter =
+          this.companyAccessPolicy.getAccessibleCompaniesFilter(user);
+        whereCondition = {
+          ...whereCondition,
+          ...accessFilter,
+        };
+      }
+
+      // Get total count of companies (with search filter and access control)
       const totalCompanies = await this.prisma.company.count({
         where: whereCondition,
       });
 
-      // Get total employees across all companies
-      const totalEmployees = await this.prisma.user.count();
+      // Get total employees across accessible companies only
+      const totalEmployees = await this.prisma.user.count({
+        where: {
+          company: whereCondition,
+        },
+      });
 
-      // Get paginated companies (with search filter)
+      // Get paginated companies (with search filter and access control)
       const companies = await this.prisma.company.findMany({
         where: whereCondition,
         include: {
-          // users: {
-          //   select: {
-          //     id: true,
-          //     name: true,
-          //     email: true,
-          //     role: true,
-          //     createdAt: true,
-          //   },
-          // },
+          parentCompany: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          subcompanies: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
           _count: {
             select: {
               users: true,
               reports: true,
+              subcompanies: true,
             },
           },
         },
@@ -191,7 +469,7 @@ export class CompaniesService {
         include: {
           users: {
             where: {
-              role: 'EMPLOYEE',
+              // role: 'EMPLOYEE',
             },
             select: {
               id: true,
@@ -205,10 +483,16 @@ export class CompaniesService {
             select: {
               users: {
                 where: {
-                  role: 'EMPLOYEE',
+                  // role: 'EMPLOYEE',
                 },
               },
               reports: true,
+            },
+          },
+          parentCompany: {
+            select: {
+              id: true,
+              name: true,
             },
           },
         },
@@ -244,6 +528,7 @@ export class CompaniesService {
         updatedAt: company.updatedAt,
         totalEmployees: company._count.users,
         totalReports: company._count.reports,
+        parentCompany: company.parentCompany,
         statistics: {
           employeeCount: company._count.users,
           reportsGenerated: company._count.reports,
@@ -271,55 +556,62 @@ export class CompaniesService {
     search?: string,
   ) {
     try {
-      // Validate that user is a company admin
-      if (!user.companyId) {
-        throw new Error('User is not associated with any company');
-      }
-
       // Normalize pagination parameters
       const { page: normalizedPage, limit: normalizedLimit } =
         normalizePaginationParams(page, limit);
       const skip = calculateSkip(normalizedPage, normalizedLimit);
 
-      // Build where condition with search
-      const whereCondition: {
-        companyId: number;
-        name?: {
-          contains: string;
-        };
-      } = {
-        companyId: user.companyId,
-      };
+      // Build where condition with search and access control using policy
+      let whereCondition: any =
+        this.companyAccessPolicy.getAccessibleEmployeesFilter(user);
 
       // Add search condition if search term is provided
       if (search && search.trim()) {
-        whereCondition.name = {
-          contains: search.trim(),
+        whereCondition = {
+          ...whereCondition,
+          name: {
+            contains: search.trim(),
+          },
         };
       }
 
-      // Get total count of employees (with search filter)
-      const totalEmployees = await this.prisma.user.count({
-        where: whereCondition,
-      });
+      // Get total count of employees (with search filter and access control)
+      // const totalEmployees = await this.prisma.user.count({
+      //   where: whereCondition,
+      // });
 
-      // Get counts by role for this company
-      const [companyAdminCount, employeeCount] = await Promise.all([
-        this.prisma.user.count({
-          where: {
-            companyId: user.companyId,
-            role: Role.COMPANY_ADMIN,
-          },
-        }),
-        this.prisma.user.count({
-          where: {
-            companyId: user.companyId,
-            role: Role.EMPLOYEE,
-          },
-        }),
-      ]);
+      // Get counts by role for accessible companies
+      const accessibleCompanyIds =
+        await this.companyAccessPolicy.getAccessibleCompanyIds(user);
 
-      // Get paginated employees from the same company (with search filter)
+      const [companyAdminCount, employeeCount, totalEmployees] =
+        await Promise.all([
+          this.prisma.user.count({
+            where: {
+              companyId: accessibleCompanyIds
+                ? { in: accessibleCompanyIds }
+                : undefined,
+              role: Role.COMPANY_ADMIN,
+            },
+          }),
+          this.prisma.user.count({
+            where: {
+              companyId: accessibleCompanyIds
+                ? { in: accessibleCompanyIds }
+                : undefined,
+              role: Role.EMPLOYEE,
+            },
+          }),
+          this.prisma.user.count({
+            where: {
+              companyId: accessibleCompanyIds
+                ? { in: accessibleCompanyIds }
+                : undefined,
+            },
+          }),
+        ]);
+
+      // Get paginated employees (with search filter and access control)
       const employees = await this.prisma.user.findMany({
         where: whereCondition,
         select: {
@@ -327,8 +619,15 @@ export class CompaniesService {
           name: true,
           email: true,
           role: true,
+          companyId: true,
           createdAt: true,
           updatedAt: true,
+          company: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
           // Exclude sensitive information like password
         },
         orderBy: {
@@ -365,6 +664,115 @@ export class CompaniesService {
     }
   }
 
+  async getCompanyEmployeesById(
+    user: User,
+    companyId: number,
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+  ) {
+    try {
+      // First, check if user can access this specific company using policy
+      await this.companyAccessPolicy.ensureUserCanAccessCompany(
+        user,
+        companyId,
+      );
+
+      // Normalize pagination parameters
+      const { page: normalizedPage, limit: normalizedLimit } =
+        normalizePaginationParams(page, limit);
+      const skip = calculateSkip(normalizedPage, normalizedLimit);
+
+      // Build where condition with search for specific company
+      let whereCondition: any = {
+        companyId: companyId,
+      };
+
+      // Add search condition if search term is provided
+      if (search && search.trim()) {
+        whereCondition = {
+          ...whereCondition,
+          name: {
+            contains: search.trim(),
+          },
+        };
+      }
+
+      // Get counts by role for this specific company
+      const [companyAdminCount, employeeCount, totalEmployees] =
+        await Promise.all([
+          this.prisma.user.count({
+            where: {
+              companyId: companyId,
+              role: Role.COMPANY_ADMIN,
+            },
+          }),
+          this.prisma.user.count({
+            where: {
+              companyId: companyId,
+              role: Role.EMPLOYEE,
+            },
+          }),
+          this.prisma.user.count({
+            where: {
+              companyId: companyId,
+            },
+          }),
+        ]);
+
+      // Get paginated employees (with search filter for specific company)
+      const employees = await this.prisma.user.findMany({
+        where: whereCondition,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          companyId: true,
+          createdAt: true,
+          updatedAt: true,
+          company: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          // Exclude sensitive information like password
+        },
+        orderBy: {
+          name: 'asc',
+        },
+        skip: skip,
+        take: normalizedLimit,
+      });
+
+      // Create paginated result
+      const paginatedResult = createPaginatedResult(
+        employees,
+        normalizedPage,
+        normalizedLimit,
+        totalEmployees,
+      );
+
+      const employeeData = {
+        companyId: companyId,
+        totalEmployees: totalEmployees,
+        companyAdminCount: companyAdminCount,
+        employeeCount: employeeCount,
+        employees: paginatedResult.data,
+        pagination: paginatedResult.pagination,
+      };
+
+      return successResponse(
+        employeeData,
+        'Company employees retrieved successfully',
+        200,
+      );
+    } catch (error) {
+      handlePrismaError(error);
+    }
+  }
+
   async getMyCompanyUserReports(
     user: User,
     page: number = 1,
@@ -374,27 +782,24 @@ export class CompaniesService {
     companyId?: number,
   ) {
     try {
-      let targetCompanyId: number;
+      let targetCompanyIds: number[] | undefined;
 
-      // Determine which company to get reports for
+      // Determine which companies to get reports for
       if (user.role === Role.SUPER_ADMIN) {
         if (!companyId) {
           throw new ForbiddenException(
             'Super admin must specify companyId parameter',
           );
         }
-        targetCompanyId = companyId;
+        targetCompanyIds = [companyId];
       } else if (user.role === Role.COMPANY_ADMIN) {
-        // Company admin should not provide companyId, they use their own company
-        if (companyId) {
-          throw new ForbiddenException(
-            'Company admin should not specify companyId parameter',
-          );
-        }
-        if (!user.companyId) {
+        // Use policy to get accessible company IDs (own company + subcompanies)
+        targetCompanyIds = companyId
+          ? [companyId]
+          : await this.companyAccessPolicy.getAccessibleCompanyIds(user);
+        if (!targetCompanyIds || targetCompanyIds.length === 0) {
           throw new Error('User is not associated with any company');
         }
-        targetCompanyId = user.companyId;
       } else {
         throw new ForbiddenException(
           'Only company admins and super admins can access user reports',
@@ -407,12 +812,15 @@ export class CompaniesService {
       const skip = calculateSkip(normalizedPage, normalizedLimit);
 
       const userWhereCondition: {
-        companyId: number;
+        companyId: { in: number[] } | number;
         name?: {
           contains: string;
         };
       } = {
-        companyId: targetCompanyId,
+        companyId:
+          targetCompanyIds.length === 1
+            ? targetCompanyIds[0]
+            : { in: targetCompanyIds },
       };
 
       // Add search condition if search term is provided
@@ -441,6 +849,12 @@ export class CompaniesService {
                 gte: currentPeriodStart,
                 lte: currentPeriodEnd,
               },
+            },
+          },
+          company: {
+            select: {
+              id: true,
+              name: true,
             },
           },
         },
@@ -513,6 +927,7 @@ export class CompaniesService {
             id: userData.id.toString(),
             userId: userData.id.toString(),
             userName: userData.name,
+            companyName: userData.company.name,
             email: userData.email,
             department: 'General', // Default department since it's not in schema
             role: userData.role as 'EMPLOYEE' | 'COMPANY_ADMIN',
@@ -536,7 +951,7 @@ export class CompaniesService {
       );
 
       const reportData = {
-        companyId: targetCompanyId,
+        companyIds: targetCompanyIds,
         totalReports: totalUsers,
         reports: paginatedResult.data,
         pagination: {
@@ -732,6 +1147,58 @@ export class CompaniesService {
       return successResponse(
         reportData,
         'Daily report generated successfully',
+        200,
+      );
+    } catch (error) {
+      handlePrismaError(error);
+    }
+  }
+
+  async getSubcompanies(user: User, parentCompanyId?: number) {
+    try {
+      // Use policy to determine target company ID for subcompanies
+      const targetCompanyId =
+        this.companyAccessPolicy.getTargetCompanyIdForSubcompanies(
+          user,
+          parentCompanyId,
+        );
+
+      // Get subcompanies
+      const subcompanies = await this.prisma.company.findMany({
+        where: {
+          parentCompanyId: targetCompanyId,
+        },
+        include: {
+          _count: {
+            select: {
+              users: true,
+              reports: true,
+            },
+          },
+        },
+        orderBy: {
+          name: 'asc',
+        },
+      });
+
+      // Format mobile numbers
+      const formattedSubcompanies = subcompanies.map((company) => ({
+        ...company,
+        mobileOfAuthorizedSignatory: normalizeKsaMobile(
+          company.mobileOfAuthorizedSignatory,
+        ),
+        hrManager1Mobile: normalizeKsaMobile(company.hrManager1Mobile),
+        hrManager2Mobile: normalizeKsaMobile(company.hrManager2Mobile),
+        accountantMobile: normalizeKsaMobile(company.accountantMobile),
+      }));
+
+      return successResponse(
+        {
+          parentCompanyId: targetCompanyId,
+          totalSubcompanies: subcompanies.length,
+          subcompanies: formattedSubcompanies,
+        },
+        'Subcompanies retrieved successfully',
         200,
       );
     } catch (error) {

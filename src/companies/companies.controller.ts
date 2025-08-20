@@ -30,21 +30,32 @@ export class CompaniesController {
   }
 
   @Get()
-  @Roles(Role.SUPER_ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   findAll(
+    @CurrentUser() user: User,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
   ) {
     const pageNumber = page ? parseInt(page, 10) : 1;
     const limitNumber = limit ? parseInt(limit, 10) : 10;
-    return this.companiesService.findAll(pageNumber, limitNumber, search);
+    return this.companiesService.findAll(pageNumber, limitNumber, search, user);
   }
 
   @Get('my-company')
   @Roles(Role.COMPANY_ADMIN)
   getMyCompany(@CurrentUser() user: User) {
     return this.companiesService.getMyCompany(user);
+  }
+
+  @Get('subcompanies')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  getSubcompanies(
+    @CurrentUser() user: User,
+    @Query('parentCompanyId') parentCompanyId?: string,
+  ) {
+    const parentId = parentCompanyId ? parseInt(parentCompanyId, 10) : undefined;
+    return this.companiesService.getSubcompanies(user, parentId);
   }
 
   @Get('my-company/employees')
@@ -59,6 +70,27 @@ export class CompaniesController {
     const pageLimit = limit ? parseInt(limit, 10) : 10;
     return this.companiesService.getMyCompanyEmployees(
       user,
+      pageNumber,
+      pageLimit,
+      search,
+    );
+  }
+
+  @Get('my-company/employees/:id')
+  @Roles(Role.COMPANY_ADMIN, Role.SUPER_ADMIN)
+  getCompanyEmployeesById(
+    @CurrentUser() user: User,
+    @Param('id') companyId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    const pageNumber = page ? parseInt(page, 10) : 1;
+    const pageLimit = limit ? parseInt(limit, 10) : 10;
+    const companyIdNumber = parseInt(companyId, 10);
+    return this.companiesService.getCompanyEmployeesById(
+      user,
+      companyIdNumber,
       pageNumber,
       pageLimit,
       search,

@@ -70,6 +70,12 @@ model Company {
   accountantEmail String @unique
   accountantMobile String @unique
   location   String  @default("الرياض")
+  
+  // Parent company relationship
+  parentCompanyId Int?
+  parentCompany   Company? @relation("ParentSubcompany", fields: [parentCompanyId], references: [id])
+  subcompanies    Company[] @relation("ParentSubcompany")
+  
   users     User[]
   reports   DailyReport[]
   createdAt DateTime @default(now())

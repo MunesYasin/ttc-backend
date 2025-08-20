@@ -1,5 +1,6 @@
-import { IsString, IsOptional, IsEmail } from 'class-validator';
+import { IsString, IsOptional, IsEmail, IsNumber } from 'class-validator';
 import { IsKsaMobile } from 'src/validators/phone-number-validatore';
+import { Type } from 'class-transformer';
 
 export class CreateCompanyDto {
   @IsString()
@@ -72,6 +73,11 @@ export class CreateCompanyDto {
   @IsOptional()
   @IsString()
   location?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  parentCompanyId?: number;
 }
 
 export class UpdateCompanyDto {
@@ -162,4 +168,9 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsString()
   location?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  parentCompanyId?: number;
 }

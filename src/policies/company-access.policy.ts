@@ -15,6 +15,8 @@ export class CompanyAccessPolicy {
       where: { id: companyId },
       include: {
         users: true,
+        parentCompany: true,
+        subcompanies: true,
       },
     });
 
@@ -28,6 +30,14 @@ export class CompanyAccessPolicy {
 
     if (user.role === Role.COMPANY_ADMIN && user.companyId === company?.id) {
       return company; // Company admin can access their own company
+    }
+
+    // Check if user is admin of parent company and can access subcompanies
+    if (
+      user.role === Role.COMPANY_ADMIN &&
+      company.parentCompanyId === user.companyId
+    ) {
+      return company; // Parent company admin can access subcompanies
     }
 
     throw new ForbiddenException('Access denied to this company');
@@ -95,5 +105,94 @@ export class CompanyAccessPolicy {
     }
 
     throw new ForbiddenException('Access denied to generate company reports');
+  }
+
+  getAccessibleCompaniesFilter(user: User): any {
+    if (user.role === Role.SUPER_ADMIN) {
+      // Super admin can see all companies - no filter needed
+      return {};
+    } else if (user.role === Role.COMPANY_ADMIN) {
+      // Company admin can see their own company and its subcompanies
+      return {
+        OR: [
+          { id: user.companyId }, // Their own company
+          { parentCompanyId: user.companyId }, // Their subcompanies
+        ],
+      };
+    } else {
+      // Employees can only see their own company
+      return { id: user.companyId };
+    }
+  }
+
+  getAccessibleEmployeesFilter(user: User): any {
+    if (user.role === Role.SUPER_ADMIN) {
+      // Super admin can see all employees - no filter needed
+      return {};
+    } else if (user.role === Role.COMPANY_ADMIN) {
+      // Company admin can see employees from their own company and subcompanies
+      return {
+        OR: [
+          { companyId: user.companyId }, // Their own company employees
+          {
+            company: {
+              parentCompanyId: user.companyId,
+            },
+          }, // Subcompany employees
+        ],
+      };
+    } else {
+      // Employees can only see employees from their own company
+      return { companyId: user.companyId };
+    }
+  }
+
+  getTargetCompanyIdForSubcompanies(
+    user: User,
+    parentCompanyId?: number,
+  ): number {
+    if (user.role === Role.SUPER_ADMIN) {
+      if (!parentCompanyId) {
+        throw new Error('Super admin must specify parentCompanyId parameter');
+      }
+      return parentCompanyId;
+    } else if (user.role === Role.COMPANY_ADMIN) {
+      // Company admin gets subcompanies of their own company
+      if (!user.companyId) {
+        throw new Error('User is not associated with any company');
+      }
+      return user.companyId;
+    } else {
+      throw new ForbiddenException('Access denied to view subcompanies');
+    }
+  }
+
+  async getAccessibleCompanyIds(user: User): Promise<number[] | undefined> {
+    if (user.role === Role.SUPER_ADMIN) {
+      // Super admin can access all companies - return undefined for no filter
+      return undefined;
+    } else if (user.role === Role.COMPANY_ADMIN) {
+      // Company admin can access their own company and all subcompanies
+      if (!user.companyId) {
+        throw new Error('User is not associated with any company');
+      }
+
+      // Get all subcompanies where this company is the parent
+      const subcompanies = await this.prisma.company.findMany({
+        where: {
+          parentCompanyId: user.companyId,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      // Return array of accessible company IDs (own company + all subcompanies)
+      const subcompanyIds = subcompanies.map((sub) => sub.id);
+      return [user.companyId, ...subcompanyIds];
+    } else {
+      // Employees can only access their own company
+      return user.companyId ? [user.companyId] : [];
+    }
   }
 }

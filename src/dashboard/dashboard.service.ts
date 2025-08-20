@@ -455,7 +455,7 @@ export class DashboardService {
       const totalEmployees = await this.prisma.user.count({
         where: {
           companyId,
-          role: 'EMPLOYEE',
+          // role: 'EMPLOYEE',
         },
       });
 

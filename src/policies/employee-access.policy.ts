@@ -13,6 +13,7 @@ export class EmployeeAccessPolicy {
   ): Promise<User | null> {
     const userByID = await this.prisma.user.findUnique({
       where: { id: employeeId },
+      include: { company: { select: { id: true, name: true } } }, // Include company to check access
     });
 
     if (!userByID) {
@@ -28,16 +29,48 @@ export class EmployeeAccessPolicy {
     }
 
     if (user.role === Role.COMPANY_ADMIN) {
-      if (userByID.companyId !== user.companyId) {
+      // Use the new method to check if user can access this employee's company
+      const accessibleCompanyIds = await this.getAccessibleCompanyIds(user);
+      if (
+        !accessibleCompanyIds ||
+        !accessibleCompanyIds.includes(userByID.companyId)
+      ) {
         throw new ForbiddenException(
-          'Access denied: employee not in your company',
+          'Access denied: employee not in your accessible companies',
         );
       }
-      // Company admin can access employees in their company
-      // This should be checked with the employee's company in the service
       return userByID;
     }
 
     throw new ForbiddenException('Access denied to this employee');
+  }
+
+  async getAccessibleCompanyIds(user: User): Promise<number[] | undefined> {
+    if (user.role === Role.SUPER_ADMIN) {
+      // Super admin can access all companies - return undefined for no filter
+      return undefined;
+    } else if (user.role === Role.COMPANY_ADMIN) {
+      // Company admin can access their own company and all subcompanies
+      if (!user.companyId) {
+        throw new Error('User is not associated with any company');
+      }
+
+      // Get all subcompanies where this company is the parent
+      const subcompanies = await this.prisma.company.findMany({
+        where: {
+          parentCompanyId: user.companyId,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      // Return array of accessible company IDs (own company + all subcompanies)
+      const subcompanyIds = subcompanies.map((sub) => sub.id);
+      return [user.companyId, ...subcompanyIds];
+    } else {
+      // Employees can only access their own company
+      return user.companyId ? [user.companyId] : [];
+    }
   }
 }

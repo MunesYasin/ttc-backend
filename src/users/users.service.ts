@@ -288,27 +288,26 @@ export class UsersService {
     companyId?: number,
   ) {
     try {
-      let targetCompanyId: number;
+      let targetCompanyIds: number[] | undefined;
 
-      // Determine which company to get statistics for
+      // Determine which companies to get statistics for
       if (currentUser.role === Role.SUPER_ADMIN) {
         if (!companyId) {
           throw new ForbiddenException(
             'Super admin must specify companyId parameter',
           );
         }
-        targetCompanyId = companyId;
+        targetCompanyIds = [companyId];
       } else if (currentUser.role === Role.COMPANY_ADMIN) {
-        // Company admin should not provide companyId, they use their own company
-        if (companyId) {
-          throw new ForbiddenException(
-            'Company admin should not specify companyId parameter',
-          );
-        }
-        if (!currentUser.companyId) {
+        // Use policy to get accessible company IDs (own company + subcompanies)
+        targetCompanyIds = companyId
+          ? [companyId]
+          : await this.employeeAccessPolicy.getAccessibleCompanyIds(
+              currentUser,
+            );
+        if (!targetCompanyIds || targetCompanyIds.length === 0) {
           throw new Error('User is not associated with any company');
         }
-        targetCompanyId = currentUser.companyId;
       } else {
         throw new ForbiddenException(
           'Only company admins and super admins can access employee statistics',
@@ -324,7 +323,11 @@ export class UsersService {
         // Current period attendance
         this.prisma.attendanceRecord.findMany({
           where: {
-            user: { companyId: targetCompanyId },
+            user: {
+              companyId: targetCompanyIds
+                ? { in: targetCompanyIds }
+                : undefined,
+            },
             date: {
               gte: currentPeriodStart,
               lte: currentPeriodEnd,
@@ -339,7 +342,11 @@ export class UsersService {
             attendanceTasks: {
               some: {
                 attendanceRecord: {
-                  user: { companyId: targetCompanyId },
+                  user: {
+                    companyId: targetCompanyIds
+                      ? { in: targetCompanyIds }
+                      : undefined,
+                  },
                 },
               },
             },
@@ -367,7 +374,7 @@ export class UsersService {
 
       // Simple statistics with only total hours and total tasks
       const statistics = {
-        companyId: targetCompanyId,
+        companyIds: targetCompanyIds,
         totalHours: Math.round(currentPeriodHours * 100) / 100,
         totalTasks: currentPeriodTasks.length,
       };
@@ -563,7 +570,13 @@ export class UsersService {
     try {
       // Validate access to company data first
       if (currentUser.role === Role.COMPANY_ADMIN) {
-        if (currentUser.companyId !== companyId) {
+        // Use policy to check if company admin can access this company
+        const accessibleCompanyIds =
+          await this.employeeAccessPolicy.getAccessibleCompanyIds(currentUser);
+        if (
+          !accessibleCompanyIds ||
+          !accessibleCompanyIds.includes(companyId)
+        ) {
           throw new ForbiddenException('Access denied to company data');
         }
       } else if (currentUser.role !== Role.SUPER_ADMIN) {
