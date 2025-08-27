@@ -27,15 +27,13 @@ export class CreateAttendanceDto {
   userId: number;
 
   @IsDateString()
-  date: string;
+  startDate: string;
 
-  @IsOptional()
   @IsDateString()
-  clockInAt?: string;
+  endDate: string;
 
-  @IsOptional()
-  @IsDateString()
-  clockOutAt?: string;
+  @IsString()
+  duration: string;
 
   @IsOptional()
   @IsString()

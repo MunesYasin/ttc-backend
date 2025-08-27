@@ -97,11 +97,8 @@ export class AttendanceController {
   }
 
   @Post('create')
-  @Roles(Role.COMPANY_ADMIN, Role.SUPER_ADMIN)
-  createAttendance(
-    @CurrentUser() user: User,
-    @Body() createAttendanceDto: CreateAttendanceDto,
-  ) {
-    return this.attendanceService.create(user, createAttendanceDto);
+  @Roles(Role.SUPER_ADMIN)
+  createAttendance(@Body() createAttendanceDto: CreateAttendanceDto) {
+    return this.attendanceService.create(createAttendanceDto);
   }
 }

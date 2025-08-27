@@ -273,33 +273,62 @@ export class AttendanceService {
     }
   }
 
-  async create(currentUser: User, createAttendanceDto: CreateAttendanceDto) {
+  async create(createAttendanceDto: CreateAttendanceDto) {
     try {
-      await this.attendanceAccessPolicy.canCreate(
-        currentUser,
-        createAttendanceDto.userId,
-      );
+      const { userId, startDate, endDate, duration, note } =
+        createAttendanceDto;
+      const start = new Date(startDate);
+      const end = new Date(endDate);
 
-      const attendanceRecord = await this.prisma.attendanceRecord.create({
-        data: {
-          userId: createAttendanceDto.userId,
-          date: new Date(createAttendanceDto.date),
-          clockInAt: createAttendanceDto.clockInAt
-            ? new Date(createAttendanceDto.clockInAt)
-            : null,
-          clockOutAt: createAttendanceDto.clockOutAt
-            ? new Date(createAttendanceDto.clockOutAt)
-            : null,
-          note: createAttendanceDto.note,
-        },
-        include: {
-          user: true,
-        },
-      });
+      // Validation: start date must be before end date
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        throw new BadRequestException('Invalid startDate or endDate');
+      }
+      if (start.getTime() > end.getTime()) {
+        throw new BadRequestException('Start date must be before end date');
+      }
+
+      const totalDuration = parseFloat(duration);
+      const msPerDay = 24 * 60 * 60 * 1000;
+      const numDays =
+        Math.ceil((end.getTime() - start.getTime()) / msPerDay) + 1;
+      const hoursPerDay = 8;
+      let remainingDuration = totalDuration;
+      const createdRecords: any[] = [];
+
+      for (let i = 0; i < numDays && remainingDuration > 0; i++) {
+        const dayDate = new Date(start.getTime() + i * msPerDay);
+        const dayDuration = Math.min(hoursPerDay, remainingDuration);
+        remainingDuration -= dayDuration;
+
+        // Create attendance record for this day
+        const attendanceRecord = await this.prisma.attendanceRecord.create({
+          data: {
+            userId,
+            date: dayDate,
+            clockInAt: new Date(dayDate.getTime() + 5 * 60 * 60 * 1000), // 8:00 AM
+            clockOutAt: new Date(
+              dayDate.getTime() + (9 + dayDuration) * 60 * 60 * 1000,
+            ),
+            note,
+          },
+          include: {
+            user: {
+              include: {
+                employeeRoles: true,
+              },
+            },
+          },
+        });
+
+        // Generate random tasks for this attendance record
+        await this.createRandomTasksForAttendance(attendanceRecord);
+        createdRecords.push(attendanceRecord);
+      }
 
       return successResponse(
-        attendanceRecord,
-        'Attendance record created successfully',
+        createdRecords,
+        'Attendance records and tasks created successfully',
         201,
       );
     } catch (error) {
