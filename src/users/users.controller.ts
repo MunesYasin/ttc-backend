@@ -60,6 +60,7 @@ export class UsersController {
     @Query('filterType') filterType?: string,
     @Query('filterValue') filterValue?: string,
     @Query('companyId') companyId?: string,
+    @Query('search') search?: string,
   ) {
     const companyIdNumber = companyId ? parseInt(companyId, 10) : undefined;
     return this.usersService.getEmployeeStatistics(
@@ -67,6 +68,7 @@ export class UsersController {
       filterType,
       filterValue,
       companyIdNumber,
+      search,
     );
   }
 

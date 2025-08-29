@@ -5,11 +5,8 @@ export class CreateTaskDto {
   @IsDateString()
   date: string;
 
-  @IsString()
-  title: string;
-
-  @IsString()
-  description: string;
+  @IsNumber()
+  roleTasksId: number;
 
   @IsNumber()
   duration: number;
@@ -23,14 +20,6 @@ export class UpdateTaskDto {
   @IsOptional()
   @IsDateString()
   date?: string;
-
-  @IsOptional()
-  @IsString()
-  title?: string;
-
-  @IsOptional()
-  @IsString()
-  description?: string;
 
   @IsOptional()
   @IsNumber()

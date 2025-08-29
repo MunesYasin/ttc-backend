@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ClockInDto,
@@ -6,22 +10,27 @@ import {
   CreateAttendanceDto,
 } from './dto/attendance.dto';
 import type { User } from '@prisma/client';
-import { AttendanceAccessPolicy } from '../policies/attendance-access.policy';
 import { Role } from 'src/common';
 import { successResponse } from '../../utilies/response';
 import { handlePrismaError } from '../../utilies/error-handler';
-import { getUserLocalDateString } from '../common/helpers/date.helper';
+import {
+  calculateDateRanges,
+  getUserLocalDateString,
+} from '../common/helpers/date.helper';
 import {
   calculateSkip,
   createPaginatedResult,
   normalizePaginationParams,
 } from '../common/helpers/pagination.helper';
+import { CompanyAccessPolicy } from 'src/policies/company-access.policy';
+import { WorkHoursPerDayEnum } from 'src/common/work-hours.enum';
+import { MinWorkHoursPerDayEnum } from 'src/common/min-work-hours.enum';
 
 @Injectable()
 export class AttendanceService {
   constructor(
     private prisma: PrismaService,
-    private attendanceAccessPolicy: AttendanceAccessPolicy,
+    private companyAccessPolicy: CompanyAccessPolicy,
   ) {}
 
   async clockIn(user: User, clockInDto: ClockInDto) {
@@ -275,7 +284,7 @@ export class AttendanceService {
 
   async create(createAttendanceDto: CreateAttendanceDto) {
     try {
-      const { userId, startDate, endDate, duration, note } =
+      const { userId, startDate, endDate, duration, note, minDailyHours } =
         createAttendanceDto;
       const start = new Date(startDate);
       const end = new Date(endDate);
@@ -288,27 +297,74 @@ export class AttendanceService {
         throw new BadRequestException('Start date must be before end date');
       }
 
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: { company: { select: { isSaturdayWork: true } } },
+      });
+
       const totalDuration = parseFloat(duration);
+      const minHoursPerDay = minDailyHours
+        ? parseFloat(minDailyHours)
+        : MinWorkHoursPerDayEnum.ONE;
+
       const msPerDay = 24 * 60 * 60 * 1000;
       const numDays =
         Math.ceil((end.getTime() - start.getTime()) / msPerDay) + 1;
-      const hoursPerDay = 8;
-      let remainingDuration = totalDuration;
-      const createdRecords: any[] = [];
+      const maxHoursPerDay = WorkHoursPerDayEnum.EIGHT;
+      const workDays: Date[] = [];
+      // Validation: minDailyHours must be at least the enum value
+      if (minHoursPerDay < MinWorkHoursPerDayEnum.ONE) {
+        throw new BadRequestException(
+          `Minimum daily hours must be at least ${MinWorkHoursPerDayEnum.ONE}`,
+        );
+      }
 
-      for (let i = 0; i < numDays && remainingDuration > 0; i++) {
+      for (let i = 0; i < numDays; i++) {
         const dayDate = new Date(start.getTime() + i * msPerDay);
-        const dayDuration = Math.min(hoursPerDay, remainingDuration);
-        remainingDuration -= dayDuration;
+        const dayOfWeek = dayDate.getDay();
+        // Skip Friday (5) and Saturday (6) if not isSaturdayWork
+        if (
+          dayOfWeek === 5 ||
+          (dayOfWeek === 6 && !user?.company?.isSaturdayWork)
+        ) {
+          continue;
+        }
+        workDays.push(dayDate);
+      }
 
-        // Create attendance record for this day
+      // Validation: minHoursPerDay * workDays.length must not exceed totalDuration
+      if (minHoursPerDay * workDays.length > totalDuration) {
+        throw new BadRequestException(
+          `Total duration (${totalDuration}) is too low for ${workDays.length} days with minimum ${minHoursPerDay} hours per day.`,
+        );
+      }
+
+      // Generate random daily work hours, max per day = maxHoursPerDay
+      const dailyHours = this.generateRandomDailyHours(
+        totalDuration,
+        workDays.length,
+        maxHoursPerDay,
+        minHoursPerDay,
+      );
+
+      /**
+       * Randomly distribute totalDuration across n days, max per day = maxHoursPerDay
+       */
+
+      const createdRecords: any[] = [];
+      for (let i = 0; i < workDays.length; i++) {
+        const dayDate = workDays[i];
+        const dayDuration = dailyHours[i];
+        if (dayDuration < 0.01) continue;
         const attendanceRecord = await this.prisma.attendanceRecord.create({
           data: {
             userId,
             date: dayDate,
-            clockInAt: new Date(dayDate.getTime() + 5 * 60 * 60 * 1000), // 8:00 AM
+            clockInAt: new Date(dayDate.getTime() + 5 * 60 * 60 * 1000), // 5:00 AM UTC
             clockOutAt: new Date(
-              dayDate.getTime() + (9 + dayDuration) * 60 * 60 * 1000,
+              dayDate.getTime() +
+                dayDuration * 60 * 60 * 1000 +
+                5 * 60 * 60 * 1000,
             ),
             note,
           },
@@ -320,8 +376,6 @@ export class AttendanceService {
             },
           },
         });
-
-        // Generate random tasks for this attendance record
         await this.createRandomTasksForAttendance(attendanceRecord);
         createdRecords.push(attendanceRecord);
       }
@@ -483,6 +537,72 @@ export class AttendanceService {
     }
   }
 
+  private generateRandomDailyHours(
+    totalDuration: number,
+    numDays: number,
+    maxHoursPerDay: number,
+    minHoursPerDay: number,
+  ): number[] {
+    // Step 1: assign minHoursPerDay to each day
+    const dailyHours = Array(numDays).fill(minHoursPerDay);
+    let remaining = totalDuration - minHoursPerDay * numDays;
+
+    // Step 2: for each day, assign a random value between 0 and max possible
+    for (let i = 0; i < numDays; i++) {
+      if (remaining <= 0) break;
+      const maxAdd = Math.min(maxHoursPerDay - minHoursPerDay, remaining);
+      // For last day, assign all remaining
+      const add = i === numDays - 1 ? maxAdd : Math.random() * maxAdd;
+      dailyHours[i] += add;
+      remaining -= add;
+    }
+    // Round all days to 2 decimals
+    for (let i = 0; i < numDays; i++) {
+      dailyHours[i] = Math.round(dailyHours[i] * 100) / 100;
+      // Clamp to max
+      if (dailyHours[i] > maxHoursPerDay) dailyHours[i] = maxHoursPerDay;
+      if (dailyHours[i] < minHoursPerDay) dailyHours[i] = minHoursPerDay;
+    }
+    // Final adjustment for floating point drift
+    let total = dailyHours.reduce((a, b) => a + b, 0);
+    let drift = Math.round((totalDuration - total) * 100) / 100;
+    if (Math.abs(drift) > 0.01) {
+      // Try to adjust the last day, but clamp to max
+      let lastIdx = numDays - 1;
+      let newVal = dailyHours[lastIdx] + drift;
+      if (newVal > maxHoursPerDay) {
+        drift = newVal - maxHoursPerDay;
+        dailyHours[lastIdx] = maxHoursPerDay;
+        // Subtract drift from previous days below max
+        for (let i = numDays - 2; i >= 0 && drift > 0.01; i--) {
+          const room = maxHoursPerDay - dailyHours[i];
+          const take = Math.min(room, drift);
+          dailyHours[i] += take;
+          drift -= take;
+        }
+      } else if (newVal < minHoursPerDay) {
+        drift = minHoursPerDay - newVal;
+        dailyHours[lastIdx] = minHoursPerDay;
+        // Add drift to previous days above min
+        for (let i = numDays - 2; i >= 0 && drift > 0.01; i--) {
+          const room = dailyHours[i] - minHoursPerDay;
+          const take = Math.min(room, drift);
+          dailyHours[i] -= take;
+          drift -= take;
+        }
+      } else {
+        dailyHours[lastIdx] = Math.round(newVal * 100) / 100;
+      }
+    }
+    // Final clamp and round
+    for (let i = 0; i < numDays; i++) {
+      dailyHours[i] = Math.round(dailyHours[i] * 100) / 100;
+      if (dailyHours[i] > maxHoursPerDay) dailyHours[i] = maxHoursPerDay;
+      if (dailyHours[i] < minHoursPerDay) dailyHours[i] = minHoursPerDay;
+    }
+    return dailyHours;
+  }
+
   private async createRandomTasksForAttendance(
     attendanceRecord: any,
   ): Promise<any[] | undefined> {
@@ -502,7 +622,6 @@ export class AttendanceService {
         return;
       }
 
-      // Calculate total work hours for this attendance record
       const workHours =
         attendanceRecord.clockInAt && attendanceRecord.clockOutAt
           ? (attendanceRecord.clockOutAt.getTime() -
@@ -514,25 +633,41 @@ export class AttendanceService {
       const numberOfTasks = Math.floor(Math.random() * 4) + 2; // Random number between 2-5
       const selectedTasks = this.getRandomTasks(roleTasks, numberOfTasks);
 
-      // Calculate remaining hours to distribute
-      // Each task has a minimum duration of 1 hour and maximum of 3 hours
-      const minDurationHours = 1; // 1 hour minimum
-      const maxDurationHours = 3; // 3 hours maximum
-
       const createdTasks: any[] = [];
 
+      const minDuration = 1; // 1 hour minimum
+      const maxDuration = 3; // 3 hours maximum
+      let remainingHours = workHours;
+
       for (let i = 0; i < selectedTasks.length; i++) {
-        // Generate random duration between 1 and 3 hours
-        const randomDuration =
-          minDurationHours +
-          Math.random() * (maxDurationHours - minDurationHours);
-        const taskDuration = Math.round(randomDuration * 100) / 100; // Round to 2 decimal places
+        const tasksLeft = selectedTasks.length - i;
+        let taskDuration;
+
+        if (i === selectedTasks.length - 1) {
+          // Last task takes all remaining hours but clamp to maxDuration
+          taskDuration = Math.min(
+            Math.max(remainingHours, minDuration),
+            maxDuration,
+          );
+        } else {
+          // Maximum this task can take
+          let maxPossible = Math.min(
+            maxDuration,
+            remainingHours - (tasksLeft - 1) * minDuration,
+          );
+          maxPossible = Math.max(maxPossible, minDuration); // Ensure at least minDuration
+
+          taskDuration =
+            Math.random() * (maxPossible - minDuration) + minDuration;
+          taskDuration = Math.round(taskDuration * 100) / 100;
+
+          remainingHours -= taskDuration;
+        }
 
         // Create the task
         const task = await this.prisma.task.create({
           data: {
-            title: selectedTasks[i].name,
-            description: `Completed task: ${selectedTasks[i].name}`,
+            roleTasksId: selectedTasks[i].id,
             duration: taskDuration,
             date: attendanceRecord.date,
           },
@@ -546,16 +681,12 @@ export class AttendanceService {
           },
         });
 
-        createdTasks.push(task);
-
-        console.log(
-          `Task ${i + 1}: ${selectedTasks[i].name} - ${taskDuration} hours`,
-        );
+        createdTasks.push({
+          task: selectedTasks[i],
+          duration: taskDuration,
+        });
       }
 
-      console.log(
-        `Created ${createdTasks.length} tasks for attendance record ${attendanceRecord.id}`,
-      );
       return createdTasks;
     } catch (error) {
       console.error('Error creating random tasks:', error);
@@ -635,5 +766,205 @@ export class AttendanceService {
     } catch (error) {
       handlePrismaError(error);
     }
+  }
+
+  async getEmployeeHoursByDateRangeWithAccess(
+    user: User,
+    companyId?: number,
+    page?: number,
+    filterType?: string,
+    filterValue?: string,
+    search?: string,
+  ) {
+    let targetCompanyIds: number[] | undefined;
+    if (companyId) {
+      // Validate access to the specified companyId
+      await this.companyAccessPolicy.ensureUserCanAccessCompany(
+        user,
+        companyId,
+      );
+    }
+
+    // Determine which companies to get attendance for
+    if (user.role === Role.SUPER_ADMIN) {
+      if (!companyId) {
+        throw new ForbiddenException(
+          'Super admin must specify companyId parameter',
+        );
+      }
+      targetCompanyIds = [companyId];
+    } else if (user.role === Role.COMPANY_ADMIN) {
+      targetCompanyIds = companyId
+        ? [companyId]
+        : await this.companyAccessPolicy.getAccessibleCompanyIds(user);
+      if (!targetCompanyIds || targetCompanyIds.length === 0) {
+        throw new Error('User is not associated with any company');
+      }
+    } else {
+      throw new ForbiddenException(
+        'Only company admins and super admins can access attendance',
+      );
+    }
+
+    // Normalize pagination parameters
+    const { page: normalizedPage, limit: normalizedLimit } =
+      normalizePaginationParams(page, 10); // Default limit of 10
+    const skip = calculateSkip(normalizedPage, normalizedLimit);
+
+    // Build user where condition
+    let userWhereCondition: any = {
+      companyId:
+        targetCompanyIds.length === 1
+          ? targetCompanyIds[0]
+          : { in: targetCompanyIds },
+    };
+    if (search && search.trim()) {
+      userWhereCondition.name = { contains: search.trim() };
+    }
+
+    // Get total count of users matching criteria
+    const totalUsers = await this.prisma.user.count({
+      where: userWhereCondition,
+    });
+
+    const dateRanges = calculateDateRanges(filterType, filterValue);
+    const { currentPeriodStart, currentPeriodEnd } = dateRanges;
+
+    // Get users and their attendance records in the date range
+    const users = await this.prisma.user.findMany({
+      where: userWhereCondition,
+      include: {
+        attendances: {
+          where: {
+            date: {
+              gte: currentPeriodStart,
+              lte: currentPeriodEnd,
+            },
+          },
+        },
+        company: {
+          select: {
+            id: true,
+            name: true,
+            isSaturdayWork: true,
+          },
+        },
+        employeeRoles: true,
+      },
+      orderBy: {
+        name: 'asc',
+      },
+      skip: skip,
+      take: normalizedLimit,
+    });
+
+    // Helper to generate all dates in the range
+    function getDatesInRange(start: Date, end: Date): Date[] {
+      const dates: Date[] = [];
+      let current = new Date(start);
+      while (current <= end) {
+        dates.push(new Date(current));
+        current.setDate(current.getDate() + 1);
+      }
+      return dates;
+    }
+
+    const allDatesInRange = getDatesInRange(
+      currentPeriodStart,
+      currentPeriodEnd,
+    );
+
+    // Calculate attendance data for each user, including daily breakdown
+    const attendanceReports = users.map((userData) => {
+      const attendanceRecords = userData.attendances;
+      // Map attendance records by date string for quick lookup
+      const attendanceByDate: Record<string, (typeof attendanceRecords)[0]> =
+        {};
+      attendanceRecords.forEach((record) => {
+        const dateStr = record.date.toISOString().slice(0, 10);
+        attendanceByDate[dateStr] = record;
+      });
+
+      let workDays = 0;
+      // For each day in the range, get total work hours for that user
+      const dailyAttendance = allDatesInRange.map((date) => {
+        const isSaturdayWork = userData.company.isSaturdayWork;
+        workDays +=
+          (isSaturdayWork || date.getDay() !== 5) && date.getDay() !== 6
+            ? 1
+            : 0;
+        const dateStr = date.toISOString().slice(0, 10);
+        const record = attendanceByDate[dateStr];
+        let hoursWorked = 0;
+        if (record && record.clockInAt && record.clockOutAt) {
+          hoursWorked =
+            Math.round(
+              ((record.clockOutAt.getTime() - record.clockInAt.getTime()) /
+                (1000 * 60 * 60)) *
+                100,
+            ) / 100;
+        }
+        return {
+          date: dateStr,
+          hoursWorked,
+          clockInAt: record?.clockInAt || null,
+          clockOutAt: record?.clockOutAt || null,
+          note: record?.note || null,
+        };
+      });
+
+      // Calculate total hours from attendance records (clockOut - clockIn)
+      const totalHours = attendanceRecords.reduce((sum, record) => {
+        if (record.clockInAt && record.clockOutAt) {
+          const hours =
+            (record.clockOutAt.getTime() - record.clockInAt.getTime()) /
+            (1000 * 60 * 60);
+          return sum + hours;
+        }
+        return sum;
+      }, 0);
+      // Calculate present days
+      const presentDays = attendanceRecords.filter(
+        (record) => record.clockInAt,
+      ).length;
+      // Calculate attendance rate (present days / total work days in range)
+
+      const attendanceRate = workDays > 0 ? (presentDays / workDays) * 100 : 0;
+      return {
+        id: userData.id.toString(),
+        userId: userData.id.toString(),
+        userName: userData.name,
+        companyName: userData.company.name,
+        email: userData.email,
+        employeeRole: userData.employeeRoles.name,
+        role: userData.role as 'EMPLOYEE' | 'COMPANY_ADMIN',
+        totalHours: Math.round(totalHours * 100) / 100,
+        presentDays,
+        attendanceRate: Math.round(attendanceRate * 100) / 100,
+        dailyAttendance,
+        workDays,
+      };
+    });
+
+    // Create paginated result
+    const paginatedResult = createPaginatedResult(
+      attendanceReports,
+      normalizedPage,
+      normalizedLimit,
+      totalUsers,
+    );
+
+    const reportData = {
+      companyIds: targetCompanyIds,
+      totalUsers,
+      attendanceReports: paginatedResult.data,
+      pagination: paginatedResult.pagination,
+    };
+
+    return successResponse(
+      reportData,
+      'Company user attendance retrieved successfully',
+      200,
+    );
   }
 }

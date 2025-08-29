@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Body, UseGuards, Query } from '@nestjs/common';
 import { AttendanceService } from './attendance.service';
+import { AttendanceAccessPolicy } from '../policies/attendance-access.policy';
 import {
   ClockInDto,
   ClockOutDto,
@@ -16,7 +17,10 @@ import { normalizePaginationParams } from '../common/helpers/pagination.helper';
 @Controller('attendance')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 export class AttendanceController {
-  constructor(private readonly attendanceService: AttendanceService) {}
+  constructor(
+    private readonly attendanceService: AttendanceService,
+    private readonly attendanceAccessPolicy: AttendanceAccessPolicy,
+  ) {}
 
   @Post('clock-in')
   @Roles(Role.EMPLOYEE)
@@ -100,5 +104,28 @@ export class AttendanceController {
   @Roles(Role.SUPER_ADMIN)
   createAttendance(@Body() createAttendanceDto: CreateAttendanceDto) {
     return this.attendanceService.create(createAttendanceDto);
+  }
+
+  @Get('employee-hours')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  getEmployeeHours(
+    @CurrentUser() user: User,
+    @Query('companyId') companyId?: string,
+    @Query('page') page?: string,
+    @Query('filterType') filterType?: string,
+    @Query('filterValue') filterValue?: string,
+    @Query('search') search?: string,
+  ) {
+    const pageNum = page ? parseInt(page, 10) : undefined;
+    const companyIdNumber = companyId ? parseInt(companyId, 10) : undefined;
+
+    return this.attendanceService.getEmployeeHoursByDateRangeWithAccess(
+      user,
+      companyIdNumber,
+      pageNum,
+      filterType,
+      filterValue,
+      search,
+    );
   }
 }

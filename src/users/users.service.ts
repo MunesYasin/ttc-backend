@@ -286,6 +286,7 @@ export class UsersService {
     filterType?: string,
     filterValue?: string,
     companyId?: number,
+    search?: string,
   ) {
     try {
       let targetCompanyIds: number[] | undefined;
@@ -318,16 +319,45 @@ export class UsersService {
       const dateRanges = calculateDateRanges(filterType, filterValue);
       const { currentPeriodStart, currentPeriodEnd } = dateRanges;
 
+      let userIds: number[] | undefined = undefined;
+      if (search && search.trim()) {
+        // Find users matching search and company
+        const matchedUsers = await this.prisma.user.findMany({
+          where: {
+            companyId: targetCompanyIds ? { in: targetCompanyIds } : undefined,
+            name: { contains: search.trim() },
+          },
+          select: { id: true },
+        });
+        userIds = matchedUsers.map((u) => u.id);
+        if (userIds.length === 0) {
+          // No users match, return zero statistics
+          return successResponse(
+            {
+              companyIds: targetCompanyIds,
+              totalHours: 0,
+              totalTasks: 0,
+            },
+            'Employee statistics retrieved successfully',
+            200,
+          );
+        }
+      }
+
       // Get only current period data since we don't need comparisons
       const [currentPeriodAttendance, currentPeriodTasks] = await Promise.all([
         // Current period attendance
         this.prisma.attendanceRecord.findMany({
           where: {
-            user: {
-              companyId: targetCompanyIds
-                ? { in: targetCompanyIds }
-                : undefined,
-            },
+            ...(userIds
+              ? { userId: { in: userIds } }
+              : {
+                  user: {
+                    companyId: targetCompanyIds
+                      ? { in: targetCompanyIds }
+                      : undefined,
+                  },
+                }),
             date: {
               gte: currentPeriodStart,
               lte: currentPeriodEnd,
@@ -341,13 +371,15 @@ export class UsersService {
           where: {
             attendanceTasks: {
               some: {
-                attendanceRecord: {
-                  user: {
-                    companyId: targetCompanyIds
-                      ? { in: targetCompanyIds }
-                      : undefined,
-                  },
-                },
+                attendanceRecord: userIds
+                  ? { userId: { in: userIds } }
+                  : {
+                      user: {
+                        companyId: targetCompanyIds
+                          ? { in: targetCompanyIds }
+                          : undefined,
+                      },
+                    },
               },
             },
             date: {

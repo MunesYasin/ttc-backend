@@ -1314,25 +1314,22 @@ async function main() {
     prisma.task.create({
       data: {
         date: today,
-        title: 'Implement user authentication',
-        description: 'Add JWT-based authentication to the application',
         duration: 6.5,
+        roleTasksId: 1, // replace with valid roleTasksId
       },
     }),
     prisma.task.create({
       data: {
         date: today,
-        title: 'Design homepage mockup',
-        description: 'Create wireframes and mockups for the new homepage',
         duration: 4.0,
+        roleTasksId: 2, // replace with valid roleTasksId
       },
     }),
     prisma.task.create({
       data: {
         date: today,
-        title: 'Create marketing campaign',
-        description: 'Develop social media campaign for Q1',
         duration: 5.5,
+        roleTasksId: 3, // replace with valid roleTasksId
       },
     }),
   ]);

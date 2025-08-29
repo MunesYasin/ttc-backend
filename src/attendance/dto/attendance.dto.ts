@@ -38,4 +38,8 @@ export class CreateAttendanceDto {
   @IsOptional()
   @IsString()
   note?: string;
+
+  @IsOptional()
+  @IsString()
+  minDailyHours?: string;
 }

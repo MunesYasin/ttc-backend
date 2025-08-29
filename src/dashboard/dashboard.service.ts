@@ -17,6 +17,10 @@ export class DashboardService {
       const userId = user.id;
       const today = new Date();
       const todayDateOnly = getUserLocalDateString(user.timezone);
+      const userInstance = await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: { company: { select: { isSaturdayWork: true } } },
+      });
 
       // Calculate date ranges
       const thisMonth = new Date();
@@ -156,6 +160,9 @@ export class DashboardService {
               },
             },
           },
+          include: {
+            roleTasks: true,
+          },
           take: 5,
           orderBy: { createdAt: 'desc' },
         }),
@@ -195,7 +202,9 @@ export class DashboardService {
             : 0;
 
       // Calculate total possible working days in current week (Sunday to Thursday = 5 days)
-      const totalCurrentWeekDays = 5;
+      const totalCurrentWeekDays = userInstance?.company?.isSaturdayWork
+        ? 6
+        : 5;
       const currentWeekPresentDays = currentWeekAttendance.filter(
         (record) => record.clockInAt,
       ).length;
@@ -245,8 +254,7 @@ export class DashboardService {
         recentTasks: recentTasks.map((task) => {
           return {
             id: task.id,
-            title: task.title,
-            description: task.description,
+            title: task.roleTasks?.name || 'No Title',
             duration: task.duration,
             date: task.date,
             createdAt: task.createdAt,
@@ -704,6 +712,7 @@ export class DashboardService {
               },
             },
           },
+          roleTasks: true,
         },
         orderBy: {
           createdAt: 'desc',
@@ -718,8 +727,7 @@ export class DashboardService {
 
         return {
           id: task.id,
-          title: task.title,
-          description: task.description,
+          title: task.roleTasks?.name || 'No Title',
           duration: task.duration,
           date: task.date,
           createdAt: task.createdAt,
@@ -818,6 +826,7 @@ export class DashboardService {
               },
             },
           },
+          roleTasks: true,
         },
       });
 
@@ -931,8 +940,7 @@ export class DashboardService {
 
         return {
           id: task.id,
-          title: task.title,
-          description: task.description,
+          title: task.roleTasks?.name || 'No Title',
           duration: task.duration,
           date: task.date,
           employee: {

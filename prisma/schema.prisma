@@ -54,6 +54,7 @@ model Company {
   id        Int      @id @default(autoincrement())
   name      String
   notionalId  String  @unique
+  isSaturdayWork Boolean  @default(false)
   commercialRegistrationNumber  String @unique
   taxNumber String @unique
   address String @unique
@@ -96,6 +97,7 @@ model RoleTasks{
   id                  Int @id @default(autoincrement())
   name                String
   employeeRolesId     Int
+  task Task[]
   employeeRoles       EmployeeRoles     @relation(fields: [employeeRolesId], references: [id])
    @@map("roletasks")
 
@@ -125,8 +127,9 @@ model AttendanceRecord {
 model Task {
   id          Int      @id @default(autoincrement()) 
   date        DateTime @db.Date
-  title       String
-  description String   @db.Text
+  roleTasksId  Int
+  roleTasks    RoleTasks     @relation(fields: [roleTasksId], references: [id])
+
   duration    Float
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

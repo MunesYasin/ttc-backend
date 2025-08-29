@@ -784,6 +784,14 @@ export class CompaniesService {
     try {
       let targetCompanyIds: number[] | undefined;
 
+      if (companyId) {
+        // Validate access to the specified companyId
+        await this.companyAccessPolicy.ensureUserCanAccessCompany(
+          user,
+          companyId,
+        );
+      }
+
       // Determine which companies to get reports for
       if (user.role === Role.SUPER_ADMIN) {
         if (!companyId) {
@@ -855,8 +863,10 @@ export class CompaniesService {
             select: {
               id: true,
               name: true,
+              isSaturdayWork: true,
             },
           },
+          employeeRoles: true,
         },
         orderBy: {
           name: 'asc',
@@ -884,15 +894,16 @@ export class CompaniesService {
               },
             },
             include: {
-              attendanceTasks: {
-                include: {
-                  attendanceRecord: {
-                    include: {
-                      user: true,
-                    },
-                  },
-                },
-              },
+              // attendanceTasks: {
+              //   include: {
+              //     attendanceRecord: {
+              //       include: {
+              //         user: true,
+              //       },
+              //     },
+              //   },
+              // },
+              roleTasks: true,
             },
           });
 
@@ -911,9 +922,10 @@ export class CompaniesService {
 
           // Calculate tasks completed
           const tasksCompleted = tasks.length;
-
           // Calculate attendance rate (present days / total work days this month)
-          const workDaysThisMonth = this.getWorkDaysInCurrentMonth();
+          const workDaysThisMonth = this.getWorkDaysInCurrentMonth(
+            userData.company.isSaturdayWork,
+          );
           const presentDays = attendanceRecords.filter(
             (record) => record.clockInAt,
           ).length;
@@ -929,7 +941,7 @@ export class CompaniesService {
             userName: userData.name,
             companyName: userData.company.name,
             email: userData.email,
-            department: 'General', // Default department since it's not in schema
+            employeeRole: userData.employeeRoles.name, // Default department since it's not in schema
             role: userData.role as 'EMPLOYEE' | 'COMPANY_ADMIN',
             totalHours: Math.round(totalHours * 100) / 100,
             tasksCompleted,
@@ -974,7 +986,7 @@ export class CompaniesService {
     }
   }
 
-  private getWorkDaysInCurrentMonth(): number {
+  private getWorkDaysInCurrentMonth(isSaturdayWork?: boolean): number {
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth();
@@ -985,7 +997,7 @@ export class CompaniesService {
       const date = new Date(year, month, day);
       const dayOfWeek = date.getDay();
       // Count Monday to Friday as work days (1-5)
-      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+      if (dayOfWeek >= 1 && dayOfWeek <= (isSaturdayWork ? 6 : 5)) {
         workDays++;
       }
     }
@@ -1119,8 +1131,6 @@ export class CompaniesService {
 
           return {
             employeeName: user?.name || 'Unknown',
-            title: task.title,
-            description: task.description,
             duration: task.duration,
           };
         }),

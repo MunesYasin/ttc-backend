@@ -37,11 +37,11 @@ export class TasksService {
         attendanceRecord.userId,
       );
 
+      // Use roleTasksId from DTO or default to 1 if not provided
       const task = await this.prisma.task.create({
         data: {
           date: new Date(createTaskDto.date),
-          title: createTaskDto.title,
-          description: createTaskDto.description,
+          roleTasksId: createTaskDto.roleTasksId ?? 1,
           duration: createTaskDto.duration,
         },
       });
@@ -97,9 +97,6 @@ export class TasksService {
           gte?: Date;
           lte?: Date;
         };
-        title?: {
-          contains: string;
-        };
       } = {};
 
       if (currentUser.role === Role.EMPLOYEE) {
@@ -132,12 +129,7 @@ export class TasksService {
         if (endDate) where.date.lte = endDate;
       }
 
-      // Add search functionality by task title
-      if (search && search.trim()) {
-        where.title = {
-          contains: search.trim(),
-        };
-      }
+      // Search removed (no title field)
 
       // Calculate pagination skip
       const skip = calculateSkip(normalizedPage, normalizedLimit);
@@ -207,15 +199,10 @@ export class TasksService {
 
       const updateData: {
         date?: Date;
-        title?: string;
-        description?: string;
         duration?: number;
       } = {};
 
       if (updateTaskDto.date) updateData.date = new Date(updateTaskDto.date);
-      if (updateTaskDto.title) updateData.title = updateTaskDto.title;
-      if (updateTaskDto.description)
-        updateData.description = updateTaskDto.description;
       if (updateTaskDto.duration !== undefined)
         updateData.duration = updateTaskDto.duration;
 
@@ -383,27 +370,10 @@ export class TasksService {
         throw new NotFoundException('Task not found');
       }
 
-      // Note: Since the Task model doesn't have a status field in the current schema,
-      // we'll update the title to include status for now
-      const updatedTask = await this.prisma.task.update({
-        where: { id },
-        data: {
-          title: `[${status.toUpperCase()}] ${existingTask.title.replace(/^\[(PENDING|IN_PROGRESS|COMPLETED)\]\s*/, '')}`,
-        },
-        include: {
-          attendanceTasks: {
-            include: {
-              attendanceRecord: {
-                include: { user: true },
-              },
-            },
-          },
-        },
-      });
-
+      // Task status update logic removed (no title/status field)
       return successResponse(
-        updatedTask,
-        'Task status updated successfully',
+        existingTask,
+        'Task status update skipped (no status field)',
         200,
       );
     } catch (error) {

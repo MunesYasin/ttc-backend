@@ -78,6 +78,9 @@ export class CreateCompanyDto {
   @IsNumber()
   @Type(() => Number)
   parentCompanyId?: number;
+
+  @IsOptional()
+  isSaturdayWork?: boolean;
 }
 
 export class UpdateCompanyDto {
@@ -173,4 +176,7 @@ export class UpdateCompanyDto {
   @IsNumber()
   @Type(() => Number)
   parentCompanyId?: number;
+
+  @IsOptional()
+  isSaturdayWork?: boolean;
 }
