@@ -655,7 +655,8 @@ export class UsersService {
       // Remove password from response
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password: _, ...profile } = user;
-
+      profile.contactMobile = normalizeKsaMobile(user.contactMobile);
+      profile.absherMobile = normalizeKsaMobile(user.absherMobile);
       return successResponse(profile, 'Profile retrieved successfully', 200);
     } catch (error) {
       handlePrismaError(error);

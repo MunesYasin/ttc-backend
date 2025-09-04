@@ -149,6 +149,7 @@ export class TasksService {
               },
             },
           },
+          roleTasks: true,
         },
         orderBy: {
           date: 'desc',

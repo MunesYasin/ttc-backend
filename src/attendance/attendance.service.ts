@@ -229,6 +229,11 @@ export class AttendanceService {
         where,
         include: {
           user: true,
+          attendanceTasks: {
+            include: {
+              task: { include: { roleTasks: true } },
+            },
+          },
         },
         orderBy: {
           date: 'desc',
