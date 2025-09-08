@@ -27,7 +27,7 @@ export class AuthController {
     res.cookie('access_token', access_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production', // true in production (HTTPS)
-      sameSite: 'none', // or 'strict' / 'none'
+      sameSite: 'lax', // or 'strict' / 'lax'
       maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
     });
 
@@ -39,7 +39,7 @@ export class AuthController {
     res.clearCookie('access_token', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'none',
+      sameSite: 'lax',
     });
 
     return {
