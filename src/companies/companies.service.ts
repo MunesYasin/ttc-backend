@@ -924,7 +924,7 @@ export class CompaniesService {
           const tasksCompleted = tasks.length;
           // Calculate attendance rate (present days / total work days this month)
           const workDaysThisMonth = this.getWorkDaysInCurrentMonth(
-            userData.company.isSaturdayWork,
+            userData.company?.isSaturdayWork || false,
           );
           const presentDays = attendanceRecords.filter(
             (record) => record.clockInAt,
@@ -939,9 +939,9 @@ export class CompaniesService {
             id: userData.id.toString(),
             userId: userData.id.toString(),
             userName: userData.name,
-            companyName: userData.company.name,
+            companyName: userData.company?.name || 'No Company',
             email: userData.email,
-            employeeRole: userData.employeeRoles.name, // Default department since it's not in schema
+            employeeRole: userData.employeeRoles?.name || 'No Role', // Default department since it's not in schema
             role: userData.role as 'EMPLOYEE' | 'COMPANY_ADMIN',
             totalHours: Math.round(totalHours * 100) / 100,
             tasksCompleted,

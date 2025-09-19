@@ -5,7 +5,11 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
+import {
+  CreateUserDto,
+  UpdateUserDto,
+  CreateBulkUsersDto,
+} from './dto/user.dto';
 import * as bcrypt from 'bcryptjs';
 import type { User } from '@prisma/client';
 import { Role } from '../common/enums/role.enum';
@@ -44,6 +48,129 @@ export class UsersService {
 
       ////////////////////// db errors vaildations
       const dbErrors: { field: string; errors: string[] }[] = [];
+
+      // Check if role is SUPER_ADMIN and validate accordingly
+      if (role === Role.SUPER_ADMIN) {
+        // For SUPER_ADMIN, these fields should not be provided
+        if (createUserDto.companyId) {
+          dbErrors.push({
+            field: 'companyId',
+            errors: ['Super admin cannot have a company'],
+          });
+        }
+        if (createUserDto.directManager) {
+          dbErrors.push({
+            field: 'directManager',
+            errors: ['Super admin cannot have a direct manager'],
+          });
+        }
+        if (createUserDto.employeeRolesId) {
+          dbErrors.push({
+            field: 'employeeRolesId',
+            errors: ['Super admin cannot have an employee role'],
+          });
+        }
+        if (createUserDto.department) {
+          dbErrors.push({
+            field: 'department',
+            errors: ['Super admin cannot have a department'],
+          });
+        }
+        if (createUserDto.totalSalary) {
+          dbErrors.push({
+            field: 'totalSalary',
+            errors: ['Super admin cannot have a salary'],
+          });
+        }
+        if (createUserDto.contractStartDate) {
+          dbErrors.push({
+            field: 'contractStartDate',
+            errors: ['Super admin cannot have a contract start date'],
+          });
+        }
+        if (createUserDto.remoteWorkDate) {
+          dbErrors.push({
+            field: 'remoteWorkDate',
+            errors: ['Super admin cannot have a remote work date'],
+          });
+        }
+      } else {
+        // For non-SUPER_ADMIN roles, companyId and employeeRolesId are required
+        if (!createUserDto.companyId) {
+          dbErrors.push({
+            field: 'companyId',
+            errors: ['Company ID is required for non-super admin users'],
+          });
+        }
+        if (!createUserDto.employeeRolesId) {
+          dbErrors.push({
+            field: 'employeeRolesId',
+            errors: ['Employee role ID is required for non-super admin users'],
+          });
+        }
+        if (!createUserDto.department) {
+          dbErrors.push({
+            field: 'department',
+            errors: ['Department is required for non-super admin users'],
+          });
+        }
+        if (!createUserDto.totalSalary) {
+          dbErrors.push({
+            field: 'totalSalary',
+            errors: ['Total salary is required for non-super admin users'],
+          });
+        }
+        if (!createUserDto.contractStartDate) {
+          dbErrors.push({
+            field: 'contractStartDate',
+            errors: [
+              'Contract start date is required for non-super admin users',
+            ],
+          });
+        }
+        if (!createUserDto.remoteWorkDate) {
+          dbErrors.push({
+            field: 'remoteWorkDate',
+            errors: ['Remote work date is required for non-super admin users'],
+          });
+        }
+
+        // For EMPLOYEE role, directManager is required
+        if (role === Role.EMPLOYEE && !createUserDto.directManager) {
+          dbErrors.push({
+            field: 'directManager',
+            errors: ['Direct manager is required for employee users'],
+          });
+        }
+      }
+
+      // Check if company exists (only if companyId is provided)
+      if (createUserDto.companyId) {
+        const existingCompany = await this.prisma.company.findUnique({
+          where: { id: createUserDto.companyId },
+        });
+        if (!existingCompany) {
+          dbErrors.push({
+            field: 'companyId',
+            errors: ['Company not found'],
+          });
+        }
+      }
+
+      // Check if employeeRole exists (only if employeeRolesId is provided)
+      if (createUserDto.employeeRolesId) {
+        const existingEmployeeRole = await this.prisma.employeeRoles.findUnique(
+          {
+            where: { id: createUserDto.employeeRolesId },
+          },
+        );
+        if (!existingEmployeeRole) {
+          dbErrors.push({
+            field: 'employeeRolesId',
+            errors: ['Employee role not found'],
+          });
+        }
+      }
 
       // Check for unique constraints before creating
       if (createUserDto.nationalId) {
@@ -121,15 +248,13 @@ export class UsersService {
         });
       }
       // Prepare user data with new fields
-      const userData = {
+      const userData: any = {
         // Basic fields
         name: createUserDto.name,
         email: createUserDto.email, // Use personalEmail as default email
         password: hashedPassword,
         role: role,
         timezone: createUserDto.timezone || 'Asia/Riyadh',
-        companyId: createUserDto.companyId,
-        employeeRolesId: createUserDto.employeeRolesId, // Use jobTitleId as employeeRolesId, default to 1
 
         // Personal Information
         nationalId: createUserDto.nationalId,
@@ -140,21 +265,40 @@ export class UsersService {
         absherMobile: formatMobileNumber(createUserDto.absherMobile),
         contactMobile: formatMobileNumber(createUserDto.contactMobile),
         personalEmail: createUserDto.personalEmail,
+      };
 
-        // Job Information
-        department: createUserDto.department,
-        totalSalary: createUserDto.totalSalary,
-        contractStartDate: createUserDto.contractStartDate || null,
-        remoteWorkDate: createUserDto.remoteWorkDate || null,
-        directManager: createUserDto.directManager,
+      // Add company-related fields only for non-SUPER_ADMIN users
+      if (role !== Role.SUPER_ADMIN) {
+        userData.companyId = createUserDto.companyId;
+        userData.employeeRolesId = createUserDto.employeeRolesId || 1;
+        userData.department = createUserDto.department;
+        userData.totalSalary = createUserDto.totalSalary;
+        userData.contractStartDate = createUserDto.contractStartDate || null;
+        userData.remoteWorkDate = createUserDto.remoteWorkDate || null;
+
+        // Add directManager for EMPLOYEE role
+        if (role === Role.EMPLOYEE) {
+          userData.directManager = createUserDto.directManager;
+        }
+      } else {
+        // For SUPER_ADMIN, explicitly set these to null/undefined
+        userData.companyId = null;
+        userData.employeeRolesId = null; // SUPER_ADMIN should not have employee role
+        userData.department = null;
+        userData.totalSalary = null;
+        userData.contractStartDate = null;
+        userData.remoteWorkDate = null;
+        userData.directManager = null;
+      }
+
+      const includeOptions = {
+        company: role !== Role.SUPER_ADMIN,
+        employeeRoles: role !== Role.SUPER_ADMIN,
       };
 
       const user = await this.prisma.user.create({
         data: userData,
-        include: {
-          company: true,
-          employeeRoles: true,
-        },
+        include: includeOptions,
       });
 
       return successResponse(user, 'User created successfully', 201);
@@ -165,18 +309,365 @@ export class UsersService {
     }
   }
 
-  async findAll(page: number = 1, limit: number = 10, search?: string) {
+  async createBulk(createBulkUsersDto: CreateBulkUsersDto) {
     try {
+      const results: Array<{
+        index: number;
+        user: any;
+        status: string;
+      }> = [];
+
+      const errors: Array<{
+        index: number;
+        user: string;
+        errors?: Array<{ field: string; errors: string[] }>;
+        error?: string;
+        status?: string;
+      }> = [];
+
+      // Process each user in the batch
+      for (let i = 0; i < createBulkUsersDto.users.length; i++) {
+        const userDto = createBulkUsersDto.users[i];
+        try {
+          // Set default password to email if password is not provided
+          const password = userDto.password || userDto.email;
+
+          if (!password) {
+            throw new Error('Either password or email must be provided');
+          }
+
+          const hashedPassword = await bcrypt.hash(password, 10);
+
+          // Set default role to EMPLOYEE if not provided
+          const role = userDto.role || Role.EMPLOYEE;
+
+          // Database validation errors for this user
+          const dbErrors: { field: string; errors: string[] }[] = [];
+
+          // Check role-specific requirements
+          if (role === Role.SUPER_ADMIN) {
+            // For SUPER_ADMIN, company-related fields should be null
+            if (userDto.companyId) {
+              dbErrors.push({
+                field: 'companyId',
+                errors: ['Super admin cannot have a company'],
+              });
+            }
+            if (userDto.directManager) {
+              dbErrors.push({
+                field: 'directManager',
+                errors: ['Super admin cannot have a direct manager'],
+              });
+            }
+            if (userDto.employeeRolesId) {
+              dbErrors.push({
+                field: 'employeeRolesId',
+                errors: ['Super admin cannot have an employee role assignment'],
+              });
+            }
+            if (userDto.department) {
+              dbErrors.push({
+                field: 'department',
+                errors: ['Super admin cannot have a department assignment'],
+              });
+            }
+            if (userDto.totalSalary) {
+              dbErrors.push({
+                field: 'totalSalary',
+                errors: ['Super admin cannot have salary information'],
+              });
+            }
+            if (userDto.contractStartDate) {
+              dbErrors.push({
+                field: 'contractStartDate',
+                errors: ['Super admin cannot have contract information'],
+              });
+            }
+            if (userDto.remoteWorkDate) {
+              dbErrors.push({
+                field: 'remoteWorkDate',
+                errors: ['Super admin cannot have remote work information'],
+              });
+            }
+          } else {
+            // For non-SUPER_ADMIN roles, companyId and employeeRolesId are required
+            if (!userDto.companyId) {
+              dbErrors.push({
+                field: 'companyId',
+                errors: ['Company ID is required for non-super admin users'],
+              });
+            }
+            if (!userDto.employeeRolesId) {
+              dbErrors.push({
+                field: 'employeeRolesId',
+                errors: [
+                  'Employee role ID is required for non-super admin users',
+                ],
+              });
+            }
+            if (!userDto.department) {
+              dbErrors.push({
+                field: 'department',
+                errors: ['Department is required for non-super admin users'],
+              });
+            }
+            if (!userDto.totalSalary) {
+              dbErrors.push({
+                field: 'totalSalary',
+                errors: ['Total salary is required for non-super admin users'],
+              });
+            }
+            if (!userDto.contractStartDate) {
+              dbErrors.push({
+                field: 'contractStartDate',
+                errors: [
+                  'Contract start date is required for non-super admin users',
+                ],
+              });
+            }
+            if (!userDto.remoteWorkDate) {
+              dbErrors.push({
+                field: 'remoteWorkDate',
+                errors: [
+                  'Remote work date is required for non-super admin users',
+                ],
+              });
+            }
+
+            // For EMPLOYEE role, directManager is required
+            if (!userDto.directManager) {
+              dbErrors.push({
+                field: 'directManager',
+                errors: ['Direct manager is required for employee users'],
+              });
+            }
+          }
+
+          // Check if company exists (only if companyId is provided)
+          if (userDto.companyId) {
+            const existingCompany = await this.prisma.company.findUnique({
+              where: { id: userDto.companyId },
+            });
+            if (!existingCompany) {
+              dbErrors.push({
+                field: 'companyId',
+                errors: ['Company not found'],
+              });
+            }
+          }
+
+          // Check if employeeRole exists (only if employeeRolesId is provided)
+          if (userDto.employeeRolesId) {
+            const existingEmployeeRole =
+              await this.prisma.employeeRoles.findUnique({
+                where: { id: userDto.employeeRolesId },
+              });
+            if (!existingEmployeeRole) {
+              dbErrors.push({
+                field: 'employeeRolesId',
+                errors: ['Employee role not found'],
+              });
+            }
+          }
+
+          // Check for unique constraints before creating
+          if (userDto.nationalId) {
+            const existingNationalId = await this.prisma.user.findUnique({
+              where: { nationalId: userDto.nationalId },
+            });
+            if (existingNationalId) {
+              dbErrors.push({
+                field: 'nationalId',
+                errors: ['National ID is already taken'],
+              });
+            }
+          }
+
+          if (userDto.personalEmail) {
+            const existingPersonalEmail = await this.prisma.user.findFirst({
+              where: { personalEmail: userDto.personalEmail },
+            });
+            if (existingPersonalEmail) {
+              dbErrors.push({
+                field: 'personalEmail',
+                errors: ['Personal email is already taken'],
+              });
+            }
+          }
+
+          if (userDto.email) {
+            const existingEmail = await this.prisma.user.findFirst({
+              where: { email: userDto.email },
+            });
+            if (existingEmail) {
+              dbErrors.push({
+                field: 'email',
+                errors: ['Email is already taken'],
+              });
+            }
+          }
+
+          if (userDto.absherMobile) {
+            const formattedAbsherMobile = formatMobileNumber(
+              userDto.absherMobile,
+            );
+            const existingAbsherMobile = await this.prisma.user.findFirst({
+              where: { absherMobile: formattedAbsherMobile },
+            });
+            if (existingAbsherMobile) {
+              dbErrors.push({
+                field: 'absherMobile',
+                errors: ['Absher mobile number is already taken'],
+              });
+            }
+          }
+
+          if (userDto.contactMobile) {
+            const formattedContactMobile = formatMobileNumber(
+              userDto.contactMobile,
+            );
+            const existingContactMobile = await this.prisma.user.findFirst({
+              where: { contactMobile: formattedContactMobile },
+            });
+            if (existingContactMobile) {
+              dbErrors.push({
+                field: 'contactMobile',
+                errors: ['Contact mobile number is already taken'],
+              });
+            }
+          }
+
+          if (dbErrors.length > 0) {
+            errors.push({
+              index: i,
+              user: userDto.name || `User at index ${i}`,
+              errors: dbErrors,
+            });
+            continue;
+          }
+
+          // Prepare user data
+          const userData: any = {
+            // Basic fields
+            name: userDto.name,
+            email: userDto.email,
+            password: hashedPassword,
+            role: role,
+            timezone: userDto.timezone || 'Asia/Riyadh',
+
+            // Personal Information
+            nationalId: userDto.nationalId,
+            hijriBirthDate: userDto.hijriBirthDate,
+            gregorianBirthDate: userDto.gregorianBirthDate || null,
+            gender: userDto.gender,
+            address: userDto.address,
+            absherMobile: formatMobileNumber(userDto.absherMobile),
+            contactMobile: formatMobileNumber(userDto.contactMobile),
+            personalEmail: userDto.personalEmail,
+          };
+
+          // Add company-related fields only for non-SUPER_ADMIN users
+          if (role !== Role.SUPER_ADMIN) {
+            userData.companyId = userDto.companyId;
+            userData.employeeRolesId = userDto.employeeRolesId || 1;
+            userData.department = userDto.department;
+            userData.totalSalary = userDto.totalSalary;
+            userData.contractStartDate = userDto.contractStartDate || null;
+            userData.remoteWorkDate = userDto.remoteWorkDate || null;
+
+            // Add directManager for EMPLOYEE role
+            if (role === Role.EMPLOYEE) {
+              userData.directManager = userDto.directManager;
+            }
+          } else {
+            // For SUPER_ADMIN, explicitly set these to null/undefined
+            userData.companyId = null;
+            userData.employeeRolesId = null; // SUPER_ADMIN should not have employee role
+            userData.department = null;
+            userData.totalSalary = null;
+            userData.contractStartDate = null;
+            userData.remoteWorkDate = null;
+            userData.directManager = null;
+          }
+
+          const includeOptions = {
+            company: role !== Role.SUPER_ADMIN,
+            employeeRoles: role !== Role.SUPER_ADMIN,
+          };
+
+          const user = await this.prisma.user.create({
+            data: userData,
+            include: includeOptions,
+          });
+
+          results.push({
+            index: i,
+            user: user,
+            status: 'success',
+          });
+        } catch (error) {
+          errors.push({
+            index: i,
+            user: userDto.name || `User at index ${i}`,
+            error: error.message,
+            status: 'failed',
+          });
+        }
+      }
+
+      const response = {
+        totalProcessed: createBulkUsersDto.users.length,
+        successful: results.length,
+        failed: errors.length,
+        results: results,
+        errors: errors,
+      };
+
+      return successResponse(
+        response,
+        `Bulk user creation completed. ${results.length} successful, ${errors.length} failed.`,
+        201,
+      );
+    } catch (error) {
+      handlePrismaError(error);
+    }
+  }
+
+  async findAll(
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+    companyId?: number,
+    currentUser?: User,
+  ) {
+    try {
+      // If companyId is provided and user is not SUPER_ADMIN, validate access using policy
+      if (companyId && currentUser && currentUser.role !== Role.SUPER_ADMIN) {
+        // Check if the current user can access the specified company
+        const accessibleCompanyIds =
+          await this.employeeAccessPolicy.getAccessibleCompanyIds(currentUser);
+
+        if (
+          !accessibleCompanyIds ||
+          !accessibleCompanyIds.includes(companyId)
+        ) {
+          throw new ForbiddenException(
+            'Access denied to the specified company',
+          );
+        }
+      }
+
       // Normalize pagination parameters
       const { page: normalizedPage, limit: normalizedLimit } =
         normalizePaginationParams(page, limit);
       const skip = calculateSkip(normalizedPage, normalizedLimit);
 
-      // Build where condition with search
+      // Build where condition with search and companyId
       const whereCondition: {
         name?: {
           contains: string;
         };
+        companyId?: number;
       } = {};
 
       // Add search condition if search term is provided
@@ -186,26 +677,30 @@ export class UsersService {
         };
       }
 
-      // Get total count of users (with search filter)
+      // Add companyId filter if provided
+      if (companyId) {
+        whereCondition.companyId = companyId;
+      }
+
+      // Get total count of users (with search and companyId filters)
       const totalUsers = await this.prisma.user.count({
         where: whereCondition,
       });
 
-      // Get counts by role
       const [companyAdminCount, employeeCount, superAdminCount] =
         await Promise.all([
           this.prisma.user.count({
-            where: { role: Role.COMPANY_ADMIN },
+            where: { ...whereCondition, role: Role.COMPANY_ADMIN },
           }),
           this.prisma.user.count({
-            where: { role: Role.EMPLOYEE },
+            where: { ...whereCondition, role: Role.EMPLOYEE },
           }),
           this.prisma.user.count({
-            where: { role: Role.SUPER_ADMIN },
+            where: { ...whereCondition, role: Role.SUPER_ADMIN },
           }),
         ]);
 
-      // Get paginated users (with search filter)
+      // Get paginated users (with search and companyId filters)
       const users = await this.prisma.user.findMany({
         where: whereCondition,
         include: {
@@ -529,6 +1024,100 @@ export class UsersService {
         }
       }
 
+      // Validate role-specific requirements
+      if (updateUserDto.role === Role.SUPER_ADMIN) {
+        // For SUPER_ADMIN, company-related fields should be null
+        if (updateUserDto.companyId) {
+          dbErrors.push({
+            field: 'companyId',
+            errors: ['Super admin cannot have a company'],
+          });
+        }
+        if (updateUserDto.directManager) {
+          dbErrors.push({
+            field: 'directManager',
+            errors: ['Super admin cannot have a direct manager'],
+          });
+        }
+        if (updateUserDto.employeeRolesId) {
+          dbErrors.push({
+            field: 'employeeRolesId',
+            errors: ['Super admin cannot have an employee role assignment'],
+          });
+        }
+        if (updateUserDto.department) {
+          dbErrors.push({
+            field: 'department',
+            errors: ['Super admin cannot have a department assignment'],
+          });
+        }
+        if (updateUserDto.totalSalary) {
+          dbErrors.push({
+            field: 'totalSalary',
+            errors: ['Super admin cannot have salary information'],
+          });
+        }
+        if (updateUserDto.contractStartDate) {
+          dbErrors.push({
+            field: 'contractStartDate',
+            errors: ['Super admin cannot have contract information'],
+          });
+        }
+        if (updateUserDto.remoteWorkDate) {
+          dbErrors.push({
+            field: 'remoteWorkDate',
+            errors: ['Super admin cannot have remote work information'],
+          });
+        }
+      } else {
+        // For non-SUPER_ADMIN roles, companyId and employeeRolesId are required
+        if (updateUserDto.companyId === undefined) {
+          dbErrors.push({
+            field: 'companyId',
+            errors: ['Company ID is required for non-super admin users'],
+          });
+        }
+        if (updateUserDto.employeeRolesId === undefined) {
+          dbErrors.push({
+            field: 'employeeRolesId',
+            errors: ['Employee role ID is required for non-super admin users'],
+          });
+        }
+        if (!updateUserDto.department) {
+          dbErrors.push({
+            field: 'department',
+            errors: ['Department is required for non-super admin users'],
+          });
+        }
+        if (!updateUserDto.totalSalary) {
+          dbErrors.push({
+            field: 'totalSalary',
+            errors: ['Total salary is required for non-super admin users'],
+          });
+        }
+        if (!updateUserDto.contractStartDate) {
+          dbErrors.push({
+            field: 'contractStartDate',
+            errors: [
+              'Contract start date is required for non-super admin users',
+            ],
+          });
+        }
+        if (!updateUserDto.remoteWorkDate) {
+          dbErrors.push({
+            field: 'remoteWorkDate',
+            errors: ['Remote work date is required for non-super admin users'],
+          });
+        }
+
+        if (!updateUserDto.directManager) {
+          dbErrors.push({
+            field: 'directManager',
+            errors: ['Direct manager is required for employee users'],
+          });
+        }
+      }
+
       // Return validation errors if any
       if (dbErrors.length > 0) {
         throw new BadRequestException({
@@ -540,8 +1129,17 @@ export class UsersService {
       }
 
       // Prepare update data
-      const updateData = {
-        ...updateUserDto,
+      const updateData: any = {
+        name: updateUserDto.name,
+        email: updateUserDto.email,
+        role: updateUserDto.role,
+        timezone: updateUserDto.timezone,
+        nationalId: updateUserDto.nationalId,
+        hijriBirthDate: updateUserDto.hijriBirthDate,
+        gregorianBirthDate: updateUserDto.gregorianBirthDate,
+        gender: updateUserDto.gender,
+        address: updateUserDto.address,
+        personalEmail: updateUserDto.personalEmail,
         absherMobile: updateUserDto.absherMobile
           ? formatMobileNumber(updateUserDto.absherMobile)
           : undefined,
@@ -550,20 +1148,47 @@ export class UsersService {
           : undefined,
       };
 
+      // Handle role-specific fields
+      if (updateUserDto.role !== Role.SUPER_ADMIN) {
+        // Add all company-related fields for non-SUPER_ADMIN users
+        updateData.companyId = updateUserDto.companyId;
+        updateData.employeeRolesId = updateUserDto.employeeRolesId;
+        updateData.department = updateUserDto.department;
+        updateData.totalSalary = updateUserDto.totalSalary;
+        updateData.contractStartDate = updateUserDto.contractStartDate;
+        updateData.remoteWorkDate = updateUserDto.remoteWorkDate;
+
+        // Add directManager for EMPLOYEE role
+        if (updateUserDto.role === Role.EMPLOYEE) {
+          updateData.directManager = updateUserDto.directManager;
+        } else {
+          updateData.directManager = null;
+        }
+      } else {
+        // For SUPER_ADMIN, explicitly set company-related fields to null
+        updateData.companyId = null;
+        updateData.employeeRolesId = null; // SUPER_ADMIN should not have employee role
+        updateData.department = null;
+        updateData.totalSalary = null;
+        updateData.contractStartDate = null;
+        updateData.remoteWorkDate = null;
+        updateData.directManager = null;
+      }
+
       // Handle password hashing if provided
       if (updateUserDto.password) {
         updateData.password = await bcrypt.hash(updateUserDto.password, 10);
       }
 
-      // Date fields are already handled by class-transformer, no conversion needed
+      const includeOptions = {
+        company: updateUserDto.role !== Role.SUPER_ADMIN,
+        employeeRoles: updateUserDto.role !== Role.SUPER_ADMIN,
+      };
 
       const updatedUser = await this.prisma.user.update({
         where: { id },
         data: updateData,
-        include: {
-          company: true,
-          employeeRoles: true,
-        },
+        include: includeOptions,
       });
 
       return successResponse(updatedUser, 'User updated successfully', 200);
@@ -760,9 +1385,122 @@ export class UsersService {
         });
       }
 
+      // Validate role-specific requirements
+      if (updateUserDto.role === Role.SUPER_ADMIN) {
+        // For SUPER_ADMIN, company-related fields should be null
+        if (updateUserDto.companyId) {
+          dbErrors.push({
+            field: 'companyId',
+            errors: ['Super admin cannot have a company'],
+          });
+        }
+        if (updateUserDto.directManager) {
+          dbErrors.push({
+            field: 'directManager',
+            errors: ['Super admin cannot have a direct manager'],
+          });
+        }
+        if (updateUserDto.employeeRolesId) {
+          dbErrors.push({
+            field: 'employeeRolesId',
+            errors: ['Super admin cannot have an employee role assignment'],
+          });
+        }
+        if (updateUserDto.department) {
+          dbErrors.push({
+            field: 'department',
+            errors: ['Super admin cannot have a department assignment'],
+          });
+        }
+        if (updateUserDto.totalSalary) {
+          dbErrors.push({
+            field: 'totalSalary',
+            errors: ['Super admin cannot have salary information'],
+          });
+        }
+        if (updateUserDto.contractStartDate) {
+          dbErrors.push({
+            field: 'contractStartDate',
+            errors: ['Super admin cannot have contract information'],
+          });
+        }
+        if (updateUserDto.remoteWorkDate) {
+          dbErrors.push({
+            field: 'remoteWorkDate',
+            errors: ['Super admin cannot have remote work information'],
+          });
+        }
+      } else if (updateUserDto.role) {
+        // For non-SUPER_ADMIN roles, validate required fields only if role is being changed
+        if (updateUserDto.companyId === undefined) {
+          dbErrors.push({
+            field: 'companyId',
+            errors: ['Company ID is required for non-super admin users'],
+          });
+        }
+        if (updateUserDto.employeeRolesId === undefined) {
+          dbErrors.push({
+            field: 'employeeRolesId',
+            errors: ['Employee role ID is required for non-super admin users'],
+          });
+        }
+        if (!updateUserDto.department) {
+          dbErrors.push({
+            field: 'department',
+            errors: ['Department is required for non-super admin users'],
+          });
+        }
+        if (!updateUserDto.totalSalary) {
+          dbErrors.push({
+            field: 'totalSalary',
+            errors: ['Total salary is required for non-super admin users'],
+          });
+        }
+        if (!updateUserDto.contractStartDate) {
+          dbErrors.push({
+            field: 'contractStartDate',
+            errors: [
+              'Contract start date is required for non-super admin users',
+            ],
+          });
+        }
+        if (!updateUserDto.remoteWorkDate) {
+          dbErrors.push({
+            field: 'remoteWorkDate',
+            errors: ['Remote work date is required for non-super admin users'],
+          });
+        }
+
+        if (!updateUserDto.directManager) {
+          dbErrors.push({
+            field: 'directManager',
+            errors: ['Direct manager is required for employee users'],
+          });
+        }
+      }
+
+      // Return validation errors if any (second check after role validation)
+      if (dbErrors.length > 0) {
+        throw new BadRequestException({
+          message: 'Database validation failed',
+          error: 'Bad Request',
+          statusCode: 400,
+          errors: dbErrors,
+        });
+      }
+
       // Prepare update data
-      const updateData = {
-        ...updateUserDto,
+      const updateData: any = {
+        name: updateUserDto.name,
+        email: updateUserDto.email,
+        role: updateUserDto.role,
+        timezone: updateUserDto.timezone,
+        nationalId: updateUserDto.nationalId,
+        hijriBirthDate: updateUserDto.hijriBirthDate,
+        gregorianBirthDate: updateUserDto.gregorianBirthDate,
+        gender: updateUserDto.gender,
+        address: updateUserDto.address,
+        personalEmail: updateUserDto.personalEmail,
         absherMobile: updateUserDto.absherMobile
           ? formatMobileNumber(updateUserDto.absherMobile)
           : undefined,
@@ -771,23 +1509,53 @@ export class UsersService {
           : undefined,
       };
 
+      // Handle role-specific fields
+      if (updateUserDto.role !== Role.SUPER_ADMIN) {
+        // Add all company-related fields for non-SUPER_ADMIN users
+        updateData.companyId = updateUserDto.companyId;
+        updateData.employeeRolesId = updateUserDto.employeeRolesId;
+        updateData.department = updateUserDto.department;
+        updateData.totalSalary = updateUserDto.totalSalary;
+        updateData.contractStartDate = updateUserDto.contractStartDate;
+        updateData.remoteWorkDate = updateUserDto.remoteWorkDate;
+
+        // Add directManager for EMPLOYEE role
+        if (updateUserDto.role === Role.EMPLOYEE) {
+          updateData.directManager = updateUserDto.directManager;
+        } else {
+          updateData.directManager = null;
+        }
+      } else {
+        // For SUPER_ADMIN, explicitly set company-related fields to null
+        updateData.companyId = null;
+        updateData.employeeRolesId = null; // SUPER_ADMIN should not have employee role
+        updateData.department = null;
+        updateData.totalSalary = null;
+        updateData.contractStartDate = null;
+        updateData.remoteWorkDate = null;
+        updateData.directManager = null;
+      }
+
       // Hash password if provided
       if (updateUserDto.password) {
         updateData.password = await bcrypt.hash(updateUserDto.password, 10);
       }
+
+      const includeOptions = {
+        company: {
+          select: {
+            id: true,
+            name: true,
+            location: true,
+          },
+        },
+        employeeRoles: updateUserDto.role !== Role.SUPER_ADMIN,
+      };
+
       const updatedUser = await this.prisma.user.update({
         where: { id: userId },
         data: updateData,
-        include: {
-          company: {
-            select: {
-              id: true,
-              name: true,
-              location: true,
-            },
-          },
-          employeeRoles: true,
-        },
+        include: includeOptions,
       });
 
       // Remove password from response

@@ -9,9 +9,14 @@ import {
   UseGuards,
   ParseIntPipe,
   Query,
+  ForbiddenException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
+import {
+  CreateUserDto,
+  UpdateUserDto,
+  CreateBulkUsersDto,
+} from './dto/user.dto';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
@@ -30,6 +35,12 @@ export class UsersController {
     return this.usersService.create(createUserDto);
   }
 
+  @Post('bulk')
+  @Roles(Role.SUPER_ADMIN)
+  createBulk(@Body() createBulkUsersDto: CreateBulkUsersDto) {
+    return this.usersService.createBulk(createBulkUsersDto);
+  }
+
   @Get()
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   findAll(
@@ -37,13 +48,22 @@ export class UsersController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
+    @Query('companyId') companyId?: string,
   ) {
-    if (user.role === Role.SUPER_ADMIN) {
-      const pageNumber = page ? parseInt(page, 10) : 1;
-      const limitNumber = limit ? parseInt(limit, 10) : 10;
-      return this.usersService.findAll(pageNumber, limitNumber, search);
+    const pageNumber = page ? parseInt(page, 10) : 1;
+    const limitNumber = limit ? parseInt(limit, 10) : 10;
+    const companyIdNumber = companyId ? parseInt(companyId, 10) : undefined;
+    
+    // Both SUPER_ADMIN and COMPANY_ADMIN can use findAll with proper access control
+    if (companyIdNumber || user.role === Role.SUPER_ADMIN) {
+      return this.usersService.findAll(pageNumber, limitNumber, search, companyIdNumber, user);
     } else {
-      return this.usersService.findByCompany(user.companyId, user);
+      // If no companyId specified and user is COMPANY_ADMIN, use their own company
+      if (user.companyId) {
+        return this.usersService.findByCompany(user.companyId, user);
+      } else {
+        throw new ForbiddenException('User has no company associated');
+      }
     }
   }
 

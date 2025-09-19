@@ -6,6 +6,9 @@ import {
   MinLength,
   IsNumber,
   IsDate,
+  IsArray,
+  ValidateNested,
+  ValidateIf,
 } from 'class-validator';
 import { Role } from '../../common/enums/role.enum';
 import { Transform, Type } from 'class-transformer';
@@ -24,8 +27,9 @@ export class CreateUserDto {
   role: Role;
 
   @Transform(({ value }) => (value ? parseInt(value as string, 10) : undefined))
+  @IsOptional()
   @IsNumber()
-  companyId: number;
+  companyId?: number;
 
   @IsOptional()
   @IsString()
@@ -36,8 +40,9 @@ export class CreateUserDto {
   nationalId: string;
 
   @Transform(({ value }) => (value ? parseInt(value as string, 10) : undefined))
+  @IsOptional()
   @IsNumber()
-  employeeRolesId: number;
+  employeeRolesId?: number;
 
   @Type(() => Date)
   @IsDate()
@@ -68,26 +73,31 @@ export class CreateUserDto {
   @IsEmail()
   personalEmail: string;
 
+  @IsOptional()
   @IsString()
-  department: string;
+  department?: string;
 
   @IsEmail()
   email: string;
 
   @Transform(({ value }) => (value ? parseFloat(value as string) : undefined))
+  @IsOptional()
   @IsNumber()
-  totalSalary: number;
+  totalSalary?: number;
 
   @Type(() => Date)
+  @IsOptional()
   @IsDate()
-  contractStartDate: Date;
+  contractStartDate?: Date;
 
   @Type(() => Date)
+  @IsOptional()
   @IsDate()
-  remoteWorkDate: Date;
+  remoteWorkDate?: Date;
 
+  @IsOptional()
   @IsString()
-  directManager: string;
+  directManager?: string;
 }
 
 export class UpdateUserDto {
@@ -103,8 +113,9 @@ export class UpdateUserDto {
   role: Role;
 
   @Transform(({ value }) => (value ? parseInt(value as string, 10) : undefined))
+  @IsOptional()
   @IsNumber()
-  companyId: number;
+  companyId?: number;
 
   @IsOptional()
   @IsString()
@@ -115,8 +126,9 @@ export class UpdateUserDto {
   nationalId: string;
 
   @Transform(({ value }) => (value ? parseInt(value as string, 10) : undefined))
+  @IsOptional()
   @IsNumber()
-  employeeRolesId: number;
+  employeeRolesId?: number;
 
   @Type(() => Date)
   @IsDate()
@@ -147,24 +159,36 @@ export class UpdateUserDto {
   @IsEmail()
   personalEmail: string;
 
+  @IsOptional()
   @IsString()
-  department: string;
+  department?: string;
 
   @IsEmail()
   email: string;
 
   @Transform(({ value }) => (value ? parseFloat(value as string) : undefined))
+  @IsOptional()
   @IsNumber()
-  totalSalary: number;
+  totalSalary?: number;
 
   @Type(() => Date)
+  @IsOptional()
   @IsDate()
-  contractStartDate: Date;
+  contractStartDate?: Date;
 
   @Type(() => Date)
+  @IsOptional()
   @IsDate()
-  remoteWorkDate: Date;
+  remoteWorkDate?: Date;
 
+  @IsOptional()
   @IsString()
-  directManager: string;
+  directManager?: string;
+}
+
+export class CreateBulkUsersDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateUserDto)
+  users: CreateUserDto[];
 }

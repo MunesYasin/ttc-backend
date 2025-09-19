@@ -33,6 +33,7 @@ export class EmployeeAccessPolicy {
       const accessibleCompanyIds = await this.getAccessibleCompanyIds(user);
       if (
         !accessibleCompanyIds ||
+        !userByID.companyId ||
         !accessibleCompanyIds.includes(userByID.companyId)
       ) {
         throw new ForbiddenException(

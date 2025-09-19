@@ -8,6 +8,8 @@ import {
   ClockInDto,
   ClockOutDto,
   CreateAttendanceDto,
+  CreateBulkAttendanceDto,
+  BulkAttendanceResponse,
 } from './dto/attendance.dto';
 import type { User } from '@prisma/client';
 import { Role } from 'src/common';
@@ -307,7 +309,7 @@ export class AttendanceService {
         include: { company: { select: { isSaturdayWork: true } } },
       });
 
-      const totalDuration = parseFloat(duration);
+      const totalDuration = duration;
       const minHoursPerDay = minDailyHours
         ? parseFloat(minDailyHours)
         : MinWorkHoursPerDayEnum.ONE;
@@ -390,6 +392,204 @@ export class AttendanceService {
         'Attendance records and tasks created successfully',
         201,
       );
+    } catch (error) {
+      handlePrismaError(error);
+    }
+  }
+
+  async createBulk(createBulkAttendanceDto: CreateBulkAttendanceDto): Promise<BulkAttendanceResponse> {
+    try {
+      const successRecords: Array<{
+        userId: number;
+        userName: string;
+        startDate: string;
+        endDate: string;
+        duration: number;
+      }> = [];
+
+      const errorRecords: Array<{
+        rowIndex: number;
+        userId: number;
+        userName?: string;
+        error: string;
+      }> = [];
+
+      // Process each attendance record in the batch
+      for (
+        let i = 0;
+        i < createBulkAttendanceDto.attendanceRecords.length;
+        i++
+      ) {
+        const attendanceDto = createBulkAttendanceDto.attendanceRecords[i];
+        try {
+          // Validate user exists
+          const user = await this.prisma.user.findUnique({
+            where: { id: attendanceDto.userId },
+            include: { 
+              company: { select: { isSaturdayWork: true } }
+            },
+          });
+
+          if (!user) {
+            errorRecords.push({
+              rowIndex: i,
+              userId: attendanceDto.userId,
+              error: 'User not found',
+            });
+            continue;
+          }
+
+          const userName = user.name || user.email || `User ${user.id}`;
+
+          // Use the existing create logic
+          const { userId, startDate, endDate, duration, note, minDailyHours } =
+            attendanceDto;
+          const start = new Date(startDate);
+          const end = new Date(endDate);
+
+          // Validation: start date must be before end date
+          if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+            errorRecords.push({
+              rowIndex: i,
+              userId: attendanceDto.userId,
+              userName,
+              error: 'Invalid startDate or endDate',
+            });
+            continue;
+          }
+
+          if (start.getTime() > end.getTime()) {
+            errorRecords.push({
+              rowIndex: i,
+              userId: attendanceDto.userId,
+              userName,
+              error: 'Start date must be before end date',
+            });
+            continue;
+          }
+
+          const totalDuration = duration;
+          const minHoursPerDay = minDailyHours
+            ? parseFloat(minDailyHours)
+            : MinWorkHoursPerDayEnum.ONE;
+
+          const msPerDay = 24 * 60 * 60 * 1000;
+          const numDays =
+            Math.ceil((end.getTime() - start.getTime()) / msPerDay) + 1;
+          const maxHoursPerDay = WorkHoursPerDayEnum.EIGHT;
+          const workDays: Date[] = [];
+
+          // Validation: minDailyHours must be at least the enum value
+          if (minHoursPerDay < MinWorkHoursPerDayEnum.ONE) {
+            errorRecords.push({
+              rowIndex: i,
+              userId: attendanceDto.userId,
+              userName,
+              error: `Minimum daily hours must be at least ${MinWorkHoursPerDayEnum.ONE}`,
+            });
+            continue;
+          }
+
+          for (let j = 0; j < numDays; j++) {
+            const dayDate = new Date(start.getTime() + j * msPerDay);
+            const dayOfWeek = dayDate.getDay();
+            // Skip Friday (5) and Saturday (6) if not isSaturdayWork
+            if (
+              dayOfWeek === 5 ||
+              (dayOfWeek === 6 && !user?.company?.isSaturdayWork)
+            ) {
+              continue;
+            }
+            workDays.push(dayDate);
+          }
+
+          // Validation: minHoursPerDay * workDays.length must not exceed totalDuration
+          if (minHoursPerDay * workDays.length > totalDuration) {
+            errorRecords.push({
+              rowIndex: i,
+              userId: attendanceDto.userId,
+              userName,
+              error: `Total duration (${totalDuration}) is too low for ${workDays.length} days with minimum ${minHoursPerDay} hours per day.`,
+            });
+            continue;
+          }
+
+          // Generate random daily work hours
+          const dailyHours = this.generateRandomDailyHours(
+            totalDuration,
+            workDays.length,
+            maxHoursPerDay,
+            minHoursPerDay,
+          );
+
+          const createdRecords: any[] = [];
+          for (let k = 0; k < workDays.length; k++) {
+            const dayDate = workDays[k];
+            const dayDuration = dailyHours[k];
+            if (dayDuration < 0.01) continue;
+
+            const attendanceRecord = await this.prisma.attendanceRecord.create({
+              data: {
+                userId,
+                date: dayDate,
+                clockInAt: new Date(dayDate.getTime() + 5 * 60 * 60 * 1000), // 5:00 AM UTC
+                clockOutAt: new Date(
+                  dayDate.getTime() +
+                    dayDuration * 60 * 60 * 1000 +
+                    5 * 60 * 60 * 1000,
+                ),
+                note,
+              },
+              include: {
+                user: {
+                  include: {
+                    employeeRoles: true,
+                  },
+                },
+              },
+            });
+
+            await this.createRandomTasksForAttendance(attendanceRecord);
+            createdRecords.push(attendanceRecord);
+          }
+
+          // Add to success records
+          successRecords.push({
+            userId: attendanceDto.userId,
+            userName,
+            startDate: attendanceDto.startDate,
+            endDate: attendanceDto.endDate,
+            duration: attendanceDto.duration,
+          });
+
+        } catch (error) {
+          const user = await this.prisma.user.findUnique({
+            where: { id: attendanceDto.userId },
+          });
+          const userName = user?.name || user?.email || `User ${attendanceDto.userId}`;
+          
+          errorRecords.push({
+            rowIndex: i,
+            userId: attendanceDto.userId,
+            userName,
+            error: error.message,
+          });
+        }
+      }
+
+      const response = {
+        success: {
+          count: successRecords.length,
+          records: successRecords,
+        },
+        errors: {
+          count: errorRecords.length,
+          records: errorRecords,
+        },
+        message: `Bulk attendance creation completed. ${successRecords.length} successful, ${errorRecords.length} failed.`,
+      };
+
+      return response;
     } catch (error) {
       handlePrismaError(error);
     }
@@ -893,7 +1093,7 @@ export class AttendanceService {
       let workDays = 0;
       // For each day in the range, get total work hours for that user
       const dailyAttendance = allDatesInRange.map((date) => {
-        const isSaturdayWork = userData.company.isSaturdayWork;
+        const isSaturdayWork = userData.company?.isSaturdayWork || false;
         workDays +=
           (isSaturdayWork || date.getDay() !== 5) && date.getDay() !== 6
             ? 1
@@ -939,9 +1139,9 @@ export class AttendanceService {
         id: userData.id.toString(),
         userId: userData.id.toString(),
         userName: userData.name,
-        companyName: userData.company.name,
+        companyName: userData.company?.name || 'No Company',
         email: userData.email,
-        employeeRole: userData.employeeRoles.name,
+        employeeRole: userData.employeeRoles?.name || 'No Role',
         role: userData.role as 'EMPLOYEE' | 'COMPANY_ADMIN',
         totalHours: Math.round(totalHours * 100) / 100,
         presentDays,

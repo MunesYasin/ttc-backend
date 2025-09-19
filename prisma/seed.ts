@@ -1004,8 +1004,8 @@ async function main() {
       personalEmail: 'superadmin.personal@ttc.com',
       password: superAdminPassword,
       role: Role.SUPER_ADMIN,
-      employeeRolesId: employeeRoles[0].id, // Assign first role as default
-      companyId: company1.id, // Use the created company
+      // employeeRolesId: undefined, // SUPER_ADMIN should not have employee role (omit field)
+      companyId: null, // SUPER_ADMIN should not have a company
       timezone: 'Asia/Riyadh',
       nationalId: '1000000001',
       hijriBirthDate: new Date('1410-05-10'),
@@ -1014,11 +1014,11 @@ async function main() {
       absherMobile: '0500000001',
       contactMobile: '0555000001',
       address: 'Riyadh, Saudi Arabia',
-      department: 'Administration',
-      directManager: 'CEO',
-      contractStartDate: new Date('2020-01-01'),
-      totalSalary: 15000.0,
-      remoteWorkDate: new Date('2024-01-01'),
+      department: null, // SUPER_ADMIN should not have a department
+      directManager: null, // SUPER_ADMIN should not have a direct manager
+      contractStartDate: null, // SUPER_ADMIN should not have contract info
+      totalSalary: null, // SUPER_ADMIN should not have salary info
+      remoteWorkDate: null, // SUPER_ADMIN should not have remote work info
     },
   });
 

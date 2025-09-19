@@ -30,16 +30,16 @@ model User {
   personalEmail         String  @unique
   
   // Job Information
-  department            String
-  totalSalary           Float
-  contractStartDate     DateTime
-  remoteWorkDate        DateTime
-  directManager         String
+  department            String?
+  totalSalary           Float?
+  contractStartDate     DateTime?
+  remoteWorkDate        DateTime?
+  directManager         String?
   
-  company    Company @relation(fields: [companyId], references: [id])
-  companyId  Int
-  employeeRoles  EmployeeRoles   @relation(fields: [employeeRolesId], references: [id])
-  employeeRolesId  Int @default(1)
+  company    Company? @relation(fields: [companyId], references: [id])
+  companyId  Int?
+  employeeRoles  EmployeeRoles?   @relation(fields: [employeeRolesId], references: [id])
+  employeeRolesId  Int? @default(1)
   attendances AttendanceRecord[]
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

@@ -1,5 +1,5 @@
-import { IsString, IsOptional, IsDateString, IsNumber } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { IsString, IsOptional, IsDateString, IsNumber, IsArray, ValidateNested } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 
 export class ClockInDto {
   @IsOptional()
@@ -32,8 +32,8 @@ export class CreateAttendanceDto {
   @IsDateString()
   endDate: string;
 
-  @IsString()
-  duration: string;
+  @IsNumber()
+  duration: number;
 
   @IsOptional()
   @IsString()
@@ -42,4 +42,34 @@ export class CreateAttendanceDto {
   @IsOptional()
   @IsString()
   minDailyHours?: string;
+}
+
+export class CreateBulkAttendanceDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateAttendanceDto)
+  attendanceRecords: CreateAttendanceDto[];
+}
+
+export interface BulkAttendanceResponse {
+  success: {
+    count: number;
+    records: {
+      userId: number;
+      userName: string;
+      startDate: string;
+      endDate: string;
+      duration: number;
+    }[];
+  };
+  errors: {
+    count: number;
+    records: {
+      rowIndex: number;
+      userId: number;
+      userName?: string;
+      error: string;
+    }[];
+  };
+  message: string;
 }
