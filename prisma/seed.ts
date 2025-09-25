@@ -1,5 +1,9 @@
-import { PrismaClient, Role } from '@prisma/client';
+import { PrismaClient, Role, SubRoles } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { 
+  PERMISSION_DEFINITIONS, 
+  DEFAULT_ROLE_PERMISSIONS 
+} from '../src/common/enums/permission.enum';
 
 const prisma = new PrismaClient();
 
@@ -929,6 +933,82 @@ async function main() {
       });
     }
   }
+
+  console.log('Initializing permissions...');
+  
+  // Initialize Permissions
+  for (const permDef of PERMISSION_DEFINITIONS) {
+    await prisma.permission.upsert({
+      where: { name: permDef.name },
+      update: {
+        description: permDef.description,
+        module: permDef.module,
+        action: permDef.action,
+      },
+      create: {
+        name: permDef.name,
+        description: permDef.description,
+        module: permDef.module,
+        action: permDef.action,
+      },
+    });
+  }
+
+  // Create SubRoles first
+  const managerSubRole = await prisma.subRole.upsert({
+    where: { name: 'MANAGER' },
+    update: {},
+    create: {
+      name: 'MANAGER',
+      description: 'Manager role with elevated permissions',
+    },
+  });
+
+  const operationSubRole = await prisma.subRole.upsert({
+    where: { name: 'OPERATION' },
+    update: {},
+    create: {
+      name: 'OPERATION',
+      description: 'Operation role with standard permissions',
+    },
+  });
+
+  // Create default subrole permissions
+  const subRoleMapping = {
+    'MANAGER': managerSubRole.id,
+    'OPERATION': operationSubRole.id,
+  };
+
+  for (const [roleName, permissionNames] of Object.entries(DEFAULT_ROLE_PERMISSIONS)) {
+    const subRoleId = subRoleMapping[roleName as keyof typeof subRoleMapping];
+    
+    if (subRoleId) {
+      for (const permissionName of permissionNames) {
+        const permission = await prisma.permission.findUnique({
+          where: { name: permissionName },
+        });
+
+        if (permission) {
+          await prisma.subRolePermission.upsert({
+            where: {
+              subRoleId_permissionId: {
+                subRoleId: subRoleId,
+                permissionId: permission.id,
+              },
+            },
+            update: {},
+            create: {
+              subRoleId: subRoleId,
+              permissionId: permission.id,
+              granted: true,
+            },
+          });
+        }
+      }
+    }
+  }
+
+  console.log('Permissions initialized successfully!');
 
   console.log('Creating users...');
   

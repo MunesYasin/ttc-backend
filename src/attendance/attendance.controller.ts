@@ -7,6 +7,7 @@ import {
   CreateAttendanceDto,
   CreateBulkAttendanceDto,
   BulkAttendanceResponse,
+  SingleAttendanceResponse,
 } from './dto/attendance.dto';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -104,13 +105,17 @@ export class AttendanceController {
 
   @Post('create')
   @Roles(Role.SUPER_ADMIN)
-  createAttendance(@Body() createAttendanceDto: CreateAttendanceDto) {
+  createAttendance(
+    @Body() createAttendanceDto: CreateAttendanceDto,
+  ): Promise<SingleAttendanceResponse> {
     return this.attendanceService.create(createAttendanceDto);
   }
 
   @Post('bulk-create')
   @Roles(Role.SUPER_ADMIN)
-  createBulkAttendance(@Body() createBulkAttendanceDto: CreateBulkAttendanceDto): Promise<BulkAttendanceResponse> {
+  createBulkAttendance(
+    @Body() createBulkAttendanceDto: CreateBulkAttendanceDto,
+  ): Promise<BulkAttendanceResponse> {
     return this.attendanceService.createBulk(createBulkAttendanceDto);
   }
 

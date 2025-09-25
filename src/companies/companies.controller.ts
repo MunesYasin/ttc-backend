@@ -17,14 +17,17 @@ import { Role } from '../common/enums/role.enum';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { User } from '@prisma/client';
 import { AuthGuard } from '@nestjs/passport';
+import { RequireCompanyCreate } from 'src/common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../common/guards/permissions.guard';
 
 @Controller('companies')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
+@UseGuards(AuthGuard('jwt'), RolesGuard, PermissionsGuard)
 export class CompaniesController {
   constructor(private readonly companiesService: CompaniesService) {}
 
   @Post()
   @Roles(Role.SUPER_ADMIN)
+  @RequireCompanyCreate()
   create(@Body() createCompanyDto: CreateCompanyDto) {
     return this.companiesService.create(createCompanyDto);
   }
@@ -54,7 +57,9 @@ export class CompaniesController {
     @CurrentUser() user: User,
     @Query('parentCompanyId') parentCompanyId?: string,
   ) {
-    const parentId = parentCompanyId ? parseInt(parentCompanyId, 10) : undefined;
+    const parentId = parentCompanyId
+      ? parseInt(parentCompanyId, 10)
+      : undefined;
     return this.companiesService.getSubcompanies(user, parentId);
   }
 

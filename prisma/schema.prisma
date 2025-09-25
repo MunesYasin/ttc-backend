@@ -17,6 +17,9 @@ model User {
   name       String
   password   String
   role       Role
+  subRoleId    Int?
+  subRole    SubRole? @relation(fields: [subRoleId], references: [id])
+
   timezone   String
   email      String  @unique   
   // Personal Information
@@ -40,7 +43,10 @@ model User {
   companyId  Int?
   employeeRoles  EmployeeRoles?   @relation(fields: [employeeRolesId], references: [id])
   employeeRolesId  Int? @default(1)
+
   attendances AttendanceRecord[]
+  
+  
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -178,4 +184,57 @@ enum Role {
   SUPER_ADMIN
   COMPANY_ADMIN
   EMPLOYEE
+}
+
+
+
+enum SubRoles {
+  MANAGER
+  OPERATION
+}
+
+model Permission {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  module      String
+  action      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  subRolePermission    SubRolePermission[]
+
+  @@unique([module, action])
+  @@map("permission")
+}
+
+model SubRole {
+  id          Int                  @id @default(autoincrement())
+  name        SubRoles               @unique // e.g. "MANAGER", "OPERATION"
+  description String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+    users   User[]
+
+  
+  subRolePermission SubRolePermission[]
+  @@map("subRole")
+
+}
+
+model SubRolePermission {
+  id           Int        @id @default(autoincrement())
+  subRoleId    Int
+  permissionId Int
+  granted      Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  subRole      SubRole    @relation(fields: [subRoleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([subRoleId, permissionId])
+  @@index([subRoleId])
+  @@index([permissionId])
+  @@map("subRolePermission")
 }

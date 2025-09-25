@@ -51,6 +51,14 @@ export class UsersService {
 
       // Check if role is SUPER_ADMIN and validate accordingly
       if (role === Role.SUPER_ADMIN) {
+        // For SUPER_ADMIN, subRoleId is required
+        if (!createUserDto.subRoleId) {
+          dbErrors.push({
+            field: 'subRoleId',
+            errors: ['SubRole ID is required for SUPER_ADMIN role'],
+          });
+        }
+
         // For SUPER_ADMIN, these fields should not be provided
         if (createUserDto.companyId) {
           dbErrors.push({
@@ -95,6 +103,16 @@ export class UsersService {
           });
         }
       } else {
+        // For non-SUPER_ADMIN roles, subRoleId should not be provided
+        if (createUserDto.subRoleId) {
+          dbErrors.push({
+            field: 'subRoleId',
+            errors: [
+              'SubRole ID should not be provided for non-SUPER_ADMIN roles',
+            ],
+          });
+        }
+
         // For non-SUPER_ADMIN roles, companyId and employeeRolesId are required
         if (!createUserDto.companyId) {
           dbErrors.push({
@@ -168,6 +186,19 @@ export class UsersService {
           dbErrors.push({
             field: 'employeeRolesId',
             errors: ['Employee role not found'],
+          });
+        }
+      }
+
+      // Check if subRole exists (only if subRoleId is provided)
+      if (createUserDto.subRoleId) {
+        const existingSubRole = await this.prisma.subRole.findUnique({
+          where: { id: createUserDto.subRoleId },
+        });
+        if (!existingSubRole) {
+          dbErrors.push({
+            field: 'subRoleId',
+            errors: ['SubRole not found'],
           });
         }
       }
@@ -281,7 +312,7 @@ export class UsersService {
           userData.directManager = createUserDto.directManager;
         }
       } else {
-        // For SUPER_ADMIN, explicitly set these to null/undefined
+        // For SUPER_ADMIN, explicitly set these to null/undefined and set subRoleId
         userData.companyId = null;
         userData.employeeRolesId = null; // SUPER_ADMIN should not have employee role
         userData.department = null;
@@ -289,6 +320,7 @@ export class UsersService {
         userData.contractStartDate = null;
         userData.remoteWorkDate = null;
         userData.directManager = null;
+        userData.subRoleId = createUserDto.subRoleId; // SUPER_ADMIN should have subRoleId
       }
 
       const includeOptions = {
@@ -346,6 +378,14 @@ export class UsersService {
 
           // Check role-specific requirements
           if (role === Role.SUPER_ADMIN) {
+            // For SUPER_ADMIN, subRoleId is required
+            if (!userDto.subRoleId) {
+              dbErrors.push({
+                field: 'subRoleId',
+                errors: ['SubRole ID is required for SUPER_ADMIN role'],
+              });
+            }
+
             // For SUPER_ADMIN, company-related fields should be null
             if (userDto.companyId) {
               dbErrors.push({
@@ -390,6 +430,16 @@ export class UsersService {
               });
             }
           } else {
+            // For non-SUPER_ADMIN roles, subRoleId should not be provided
+            if (userDto.subRoleId) {
+              dbErrors.push({
+                field: 'subRoleId',
+                errors: [
+                  'SubRole ID should not be provided for non-SUPER_ADMIN roles',
+                ],
+              });
+            }
+
             // For non-SUPER_ADMIN roles, companyId and employeeRolesId are required
             if (!userDto.companyId) {
               dbErrors.push({
@@ -466,6 +516,19 @@ export class UsersService {
               dbErrors.push({
                 field: 'employeeRolesId',
                 errors: ['Employee role not found'],
+              });
+            }
+          }
+
+          // Check if subRole exists (only if subRoleId is provided)
+          if (userDto.subRoleId) {
+            const existingSubRole = await this.prisma.subRole.findUnique({
+              where: { id: userDto.subRoleId },
+            });
+            if (!existingSubRole) {
+              dbErrors.push({
+                field: 'subRoleId',
+                errors: ['SubRole not found'],
               });
             }
           }
@@ -580,7 +643,7 @@ export class UsersService {
               userData.directManager = userDto.directManager;
             }
           } else {
-            // For SUPER_ADMIN, explicitly set these to null/undefined
+            // For SUPER_ADMIN, explicitly set these to null/undefined and set subRoleId
             userData.companyId = null;
             userData.employeeRolesId = null; // SUPER_ADMIN should not have employee role
             userData.department = null;
@@ -588,6 +651,7 @@ export class UsersService {
             userData.contractStartDate = null;
             userData.remoteWorkDate = null;
             userData.directManager = null;
+            userData.subRoleId = userDto.subRoleId; // SUPER_ADMIN should have subRoleId
           }
 
           const includeOptions = {
@@ -918,6 +982,8 @@ export class UsersService {
 
   async update(id: number, updateUserDto: UpdateUserDto, currentUser: User) {
     try {
+      console.log('===================');
+
       // Use ensure method which already fetches and validates access
       const existingUser =
         await this.employeeAccessPolicy.ensureUserCanAccessEmployee(
@@ -1026,6 +1092,16 @@ export class UsersService {
 
       // Validate role-specific requirements
       if (updateUserDto.role === Role.SUPER_ADMIN) {
+        console.log('----------------', dbErrors);
+
+        // For SUPER_ADMIN, subRoleId is required
+        if (!updateUserDto.subRoleId) {
+          dbErrors.push({
+            field: 'subRoleId',
+            errors: ['SubRole ID is required for SUPER_ADMIN role'],
+          });
+        }
+
         // For SUPER_ADMIN, company-related fields should be null
         if (updateUserDto.companyId) {
           dbErrors.push({
@@ -1070,6 +1146,16 @@ export class UsersService {
           });
         }
       } else {
+        // For non-SUPER_ADMIN roles, subRoleId should not be provided
+        if (updateUserDto.subRoleId) {
+          dbErrors.push({
+            field: 'subRoleId',
+            errors: [
+              'SubRole ID should not be provided for non-SUPER_ADMIN roles',
+            ],
+          });
+        }
+
         // For non-SUPER_ADMIN roles, companyId and employeeRolesId are required
         if (updateUserDto.companyId === undefined) {
           dbErrors.push({
@@ -1173,6 +1259,7 @@ export class UsersService {
         updateData.contractStartDate = null;
         updateData.remoteWorkDate = null;
         updateData.directManager = null;
+        updateData.subRoleId = updateUserDto.subRoleId; // SUPER_ADMIN should have subRoleId
       }
 
       // Handle password hashing if provided
@@ -1270,6 +1357,7 @@ export class UsersService {
             },
           },
           employeeRoles: true,
+          subRole: true,
         },
       });
 

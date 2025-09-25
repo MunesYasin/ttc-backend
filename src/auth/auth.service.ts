@@ -20,8 +20,9 @@ export class AuthService {
     try {
       const user = await this.prisma.user.findUnique({
         where: { email },
-        include: { company: true },
+        include: { company: true, subRole: true },
       });
+console.log(user,"+++++++++++++++++++");
 
       if (user && (await bcrypt.compare(password, user.password))) {
         // Exclude the password property from the user object

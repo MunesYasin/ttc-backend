@@ -1,4 +1,11 @@
-import { IsString, IsOptional, IsDateString, IsNumber, IsArray, ValidateNested } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsDateString,
+  IsNumber,
+  IsArray,
+  ValidateNested,
+} from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 
 export class ClockInDto {
@@ -60,6 +67,7 @@ export interface BulkAttendanceResponse {
       startDate: string;
       endDate: string;
       duration: number;
+      attendanceRecordsCreated: number;
     }[];
   };
   errors: {
@@ -69,7 +77,47 @@ export interface BulkAttendanceResponse {
       userId: number;
       userName?: string;
       error: string;
+      attendanceRecordsCreated?: number;
     }[];
+  };
+  attendanceErrors: {
+    count: number;
+    records: {
+      rowIndex: number;
+      userId: number;
+      userName: string;
+      date: string;
+      error: string;
+    }[];
+  };
+  message: string;
+}
+
+export interface SingleAttendanceResponse {
+  success: boolean;
+  data: {
+    userId: number;
+    userName: string;
+    startDate: string;
+    endDate: string;
+    duration: number;
+    attendanceRecordsCreated: number;
+    attendanceRecordsRequested: number;
+    attendanceRecords: {
+      id: number;
+      date: string;
+      clockInAt: string;
+      clockOutAt: string;
+      hoursWorked: number;
+      note?: string;
+    }[];
+    attendanceErrors: {
+      count: number;
+      records: {
+        date: string;
+        error: string;
+      }[];
+    };
   };
   message: string;
 }

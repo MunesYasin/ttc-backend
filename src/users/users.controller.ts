@@ -23,9 +23,10 @@ import { Role } from '../common/enums/role.enum';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { User } from '@prisma/client';
 import { AuthGuard } from '@nestjs/passport';
+import { PermissionsGuard } from '../common/guards/permissions.guard';
 
 @Controller('users')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
+@UseGuards(AuthGuard('jwt'), RolesGuard, PermissionsGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
@@ -53,10 +54,16 @@ export class UsersController {
     const pageNumber = page ? parseInt(page, 10) : 1;
     const limitNumber = limit ? parseInt(limit, 10) : 10;
     const companyIdNumber = companyId ? parseInt(companyId, 10) : undefined;
-    
+
     // Both SUPER_ADMIN and COMPANY_ADMIN can use findAll with proper access control
     if (companyIdNumber || user.role === Role.SUPER_ADMIN) {
-      return this.usersService.findAll(pageNumber, limitNumber, search, companyIdNumber, user);
+      return this.usersService.findAll(
+        pageNumber,
+        limitNumber,
+        search,
+        companyIdNumber,
+        user,
+      );
     } else {
       // If no companyId specified and user is COMPANY_ADMIN, use their own company
       if (user.companyId) {

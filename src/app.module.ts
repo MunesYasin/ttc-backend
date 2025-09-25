@@ -12,6 +12,7 @@ import { SuperAdminModule } from './super-admin/super-admin.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { EmployeeRolesModule } from './employee-roles/employee-roles.module';
+import { PermissionModule } from './permissions/permission.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { EmployeeRolesModule } from './employee-roles/employee-roles.module';
     DashboardModule,
     NotificationsModule,
     EmployeeRolesModule,
+    PermissionModule,
   ],
   controllers: [AppController],
   providers: [AppService],

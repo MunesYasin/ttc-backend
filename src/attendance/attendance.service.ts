@@ -10,6 +10,7 @@ import {
   CreateAttendanceDto,
   CreateBulkAttendanceDto,
   BulkAttendanceResponse,
+  SingleAttendanceResponse,
 } from './dto/attendance.dto';
 import type { User } from '@prisma/client';
 import { Role } from 'src/common';
@@ -289,80 +290,103 @@ export class AttendanceService {
     }
   }
 
-  async create(createAttendanceDto: CreateAttendanceDto) {
-    try {
-      const { userId, startDate, endDate, duration, note, minDailyHours } =
-        createAttendanceDto;
-      const start = new Date(startDate);
-      const end = new Date(endDate);
+  async create(
+    createAttendanceDto: CreateAttendanceDto,
+  ): Promise<SingleAttendanceResponse> {
+    const { userId, startDate, endDate, duration, note, minDailyHours } =
+      createAttendanceDto;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
 
-      // Validation: start date must be before end date
-      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-        throw new BadRequestException('Invalid startDate or endDate');
-      }
-      if (start.getTime() > end.getTime()) {
-        throw new BadRequestException('Start date must be before end date');
-      }
+    // Validation: start date must be before end date
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new BadRequestException('Invalid startDate or endDate');
+    }
+    if (start.getTime() > end.getTime()) {
+      throw new BadRequestException('Start date must be before end date');
+    }
 
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        include: { company: { select: { isSaturdayWork: true } } },
-      });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { company: { select: { isSaturdayWork: true } } },
+    });
 
-      const totalDuration = duration;
-      const minHoursPerDay = minDailyHours
-        ? parseFloat(minDailyHours)
-        : MinWorkHoursPerDayEnum.ONE;
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
 
-      const msPerDay = 24 * 60 * 60 * 1000;
-      const numDays =
-        Math.ceil((end.getTime() - start.getTime()) / msPerDay) + 1;
-      const maxHoursPerDay = WorkHoursPerDayEnum.EIGHT;
-      const workDays: Date[] = [];
-      // Validation: minDailyHours must be at least the enum value
-      if (minHoursPerDay < MinWorkHoursPerDayEnum.ONE) {
-        throw new BadRequestException(
-          `Minimum daily hours must be at least ${MinWorkHoursPerDayEnum.ONE}`,
-        );
-      }
+    const userName = user.name || user.email || `User ${user.id}`;
+    const totalDuration = duration;
+    const minHoursPerDay = minDailyHours
+      ? parseFloat(minDailyHours)
+      : MinWorkHoursPerDayEnum.ONE;
 
-      for (let i = 0; i < numDays; i++) {
-        const dayDate = new Date(start.getTime() + i * msPerDay);
-        const dayOfWeek = dayDate.getDay();
-        // Skip Friday (5) and Saturday (6) if not isSaturdayWork
-        if (
-          dayOfWeek === 5 ||
-          (dayOfWeek === 6 && !user?.company?.isSaturdayWork)
-        ) {
-          continue;
-        }
-        workDays.push(dayDate);
-      }
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const numDays = Math.ceil((end.getTime() - start.getTime()) / msPerDay) + 1;
+    const maxHoursPerDay = WorkHoursPerDayEnum.EIGHT;
+    const workDays: Date[] = [];
 
-      // Validation: minHoursPerDay * workDays.length must not exceed totalDuration
-      if (minHoursPerDay * workDays.length > totalDuration) {
-        throw new BadRequestException(
-          `Total duration (${totalDuration}) is too low for ${workDays.length} days with minimum ${minHoursPerDay} hours per day.`,
-        );
-      }
-
-      // Generate random daily work hours, max per day = maxHoursPerDay
-      const dailyHours = this.generateRandomDailyHours(
-        totalDuration,
-        workDays.length,
-        maxHoursPerDay,
-        minHoursPerDay,
+    // Validation: minDailyHours must be at least the enum value
+    if (minHoursPerDay < MinWorkHoursPerDayEnum.ONE) {
+      throw new BadRequestException(
+        `Minimum daily hours must be at least ${MinWorkHoursPerDayEnum.ONE}`,
       );
+    }
 
-      /**
-       * Randomly distribute totalDuration across n days, max per day = maxHoursPerDay
-       */
+    for (let i = 0; i < numDays; i++) {
+      const dayDate = new Date(start.getTime() + i * msPerDay);
+      const dayOfWeek = dayDate.getDay();
+      // Skip Friday (5) and Saturday (6) if not isSaturdayWork
+      if (
+        dayOfWeek === 5 ||
+        (dayOfWeek === 6 && !user?.company?.isSaturdayWork)
+      ) {
+        continue;
+      }
+      workDays.push(dayDate);
+    }
 
-      const createdRecords: any[] = [];
-      for (let i = 0; i < workDays.length; i++) {
-        const dayDate = workDays[i];
-        const dayDuration = dailyHours[i];
-        if (dayDuration < 0.01) continue;
+    // Validation: minHoursPerDay * workDays.length must not exceed totalDuration
+    if (minHoursPerDay * workDays.length > totalDuration) {
+      throw new BadRequestException(
+        `Total duration (${totalDuration}) is too low for ${workDays.length} days with minimum ${minHoursPerDay} hours per day.`,
+      );
+    }
+
+    // Generate random daily work hours, max per day = maxHoursPerDay
+    const dailyHours = this.generateRandomDailyHours(
+      totalDuration,
+      workDays.length,
+      maxHoursPerDay,
+      minHoursPerDay,
+    );
+
+    // Track attendance creation errors
+    const attendanceErrors: Array<{
+      date: string;
+      error: string;
+    }> = [];
+
+    // Track created attendance records
+    const createdAttendanceRecords: Array<{
+      id: number;
+      date: string;
+      clockInAt: string;
+      clockOutAt: string;
+      hoursWorked: number;
+      note?: string;
+    }> = [];
+
+    let attendanceRecordsCreated = 0;
+    const attendanceRecordsRequested = workDays.length;
+
+    // Create attendance records with individual error handling
+    for (let i = 0; i < workDays.length; i++) {
+      const dayDate = workDays[i];
+      const dayDuration = dailyHours[i];
+      if (dayDuration < 0.01) continue;
+
+      try {
         const attendanceRecord = await this.prisma.attendanceRecord.create({
           data: {
             userId,
@@ -383,21 +407,82 @@ export class AttendanceService {
             },
           },
         });
-        await this.createRandomTasksForAttendance(attendanceRecord);
-        createdRecords.push(attendanceRecord);
-      }
 
-      return successResponse(
-        createdRecords,
-        'Attendance records and tasks created successfully',
-        201,
-      );
-    } catch (error) {
-      handlePrismaError(error);
+        // Calculate hours worked
+        const hoursWorked =
+          Math.round(
+            ((attendanceRecord.clockOutAt!.getTime() -
+              attendanceRecord.clockInAt!.getTime()) /
+              (1000 * 60 * 60)) *
+              100,
+          ) / 100;
+
+        // Add to created records array
+        createdAttendanceRecords.push({
+          id: attendanceRecord.id,
+          date: attendanceRecord.date.toISOString().split('T')[0],
+          clockInAt: attendanceRecord.clockInAt!.toISOString(),
+          clockOutAt: attendanceRecord.clockOutAt!.toISOString(),
+          hoursWorked,
+          note: attendanceRecord.note || undefined,
+        });
+
+        // Try to create tasks for this attendance record
+        try {
+          await this.createRandomTasksForAttendance(attendanceRecord);
+        } catch (taskError) {
+          // Log task creation error but don't fail the attendance creation
+          console.warn(
+            `Failed to create tasks for attendance ${attendanceRecord.id}:`,
+            taskError.message,
+          );
+        }
+
+        attendanceRecordsCreated++;
+      } catch (attendanceError) {
+        // Individual attendance record creation failed
+        attendanceErrors.push({
+          date: dayDate.toISOString().split('T')[0],
+          error: attendanceError.message,
+        });
+      }
     }
+
+    // Determine success based on whether any attendance records were created
+    const success = attendanceRecordsCreated > 0;
+
+    const response: SingleAttendanceResponse = {
+      success,
+      data: {
+        userId,
+        userName,
+        startDate,
+        endDate,
+        duration,
+        attendanceRecordsCreated,
+        attendanceRecordsRequested,
+        attendanceRecords: createdAttendanceRecords,
+        attendanceErrors: {
+          count: attendanceErrors.length,
+          records: attendanceErrors,
+        },
+      },
+
+      message: success
+        ? `Attendance creation completed. ${attendanceRecordsCreated}/${attendanceRecordsRequested} records created successfully.${
+            attendanceErrors.length > 0
+              ? ` ${attendanceErrors.length} records failed.`
+              : ''
+          }`
+        : `Attendance creation failed. No records could be created. ${attendanceErrors.length} errors occurred.`,
+    };
+
+    return response;
   }
 
-  async createBulk(createBulkAttendanceDto: CreateBulkAttendanceDto): Promise<BulkAttendanceResponse> {
+  async createBulk(
+    createBulkAttendanceDto: CreateBulkAttendanceDto,
+  ): Promise<BulkAttendanceResponse> {
     try {
       const successRecords: Array<{
         userId: number;
@@ -405,12 +490,22 @@ export class AttendanceService {
         startDate: string;
         endDate: string;
         duration: number;
+        attendanceRecordsCreated: number;
       }> = [];
 
       const errorRecords: Array<{
         rowIndex: number;
         userId: number;
         userName?: string;
+        error: string;
+        attendanceRecordsCreated?: number;
+      }> = [];
+
+      const attendanceErrorRecords: Array<{
+        rowIndex: number;
+        userId: number;
+        userName: string;
+        date: string;
         error: string;
       }> = [];
 
@@ -421,20 +516,23 @@ export class AttendanceService {
         i++
       ) {
         const attendanceDto = createBulkAttendanceDto.attendanceRecords[i];
+        let attendanceRecordsCreated = 0;
+
         try {
           // Validate user exists
           const user = await this.prisma.user.findUnique({
             where: { id: attendanceDto.userId },
-            include: { 
-              company: { select: { isSaturdayWork: true } }
+            include: {
+              company: { select: { isSaturdayWork: true } },
             },
           });
 
           if (!user) {
             errorRecords.push({
-              rowIndex: i,
+              rowIndex: i + 2,
               userId: attendanceDto.userId,
               error: 'User not found',
+              attendanceRecordsCreated: 0,
             });
             continue;
           }
@@ -450,20 +548,22 @@ export class AttendanceService {
           // Validation: start date must be before end date
           if (isNaN(start.getTime()) || isNaN(end.getTime())) {
             errorRecords.push({
-              rowIndex: i,
+              rowIndex: i + 2,
               userId: attendanceDto.userId,
               userName,
               error: 'Invalid startDate or endDate',
+              attendanceRecordsCreated: 0,
             });
             continue;
           }
 
           if (start.getTime() > end.getTime()) {
             errorRecords.push({
-              rowIndex: i,
+              rowIndex: i + 2,
               userId: attendanceDto.userId,
               userName,
               error: 'Start date must be before end date',
+              attendanceRecordsCreated: 0,
             });
             continue;
           }
@@ -482,10 +582,11 @@ export class AttendanceService {
           // Validation: minDailyHours must be at least the enum value
           if (minHoursPerDay < MinWorkHoursPerDayEnum.ONE) {
             errorRecords.push({
-              rowIndex: i,
+              rowIndex: i + 2,
               userId: attendanceDto.userId,
               userName,
               error: `Minimum daily hours must be at least ${MinWorkHoursPerDayEnum.ONE}`,
+              attendanceRecordsCreated: 0,
             });
             continue;
           }
@@ -506,10 +607,11 @@ export class AttendanceService {
           // Validation: minHoursPerDay * workDays.length must not exceed totalDuration
           if (minHoursPerDay * workDays.length > totalDuration) {
             errorRecords.push({
-              rowIndex: i,
+              rowIndex: i + 2,
               userId: attendanceDto.userId,
               userName,
               error: `Total duration (${totalDuration}) is too low for ${workDays.length} days with minimum ${minHoursPerDay} hours per day.`,
+              attendanceRecordsCreated: 0,
             });
             continue;
           }
@@ -522,57 +624,92 @@ export class AttendanceService {
             minHoursPerDay,
           );
 
-          const createdRecords: any[] = [];
+          // Create attendance records with individual error handling
           for (let k = 0; k < workDays.length; k++) {
             const dayDate = workDays[k];
             const dayDuration = dailyHours[k];
             if (dayDuration < 0.01) continue;
 
-            const attendanceRecord = await this.prisma.attendanceRecord.create({
-              data: {
-                userId,
-                date: dayDate,
-                clockInAt: new Date(dayDate.getTime() + 5 * 60 * 60 * 1000), // 5:00 AM UTC
-                clockOutAt: new Date(
-                  dayDate.getTime() +
-                    dayDuration * 60 * 60 * 1000 +
-                    5 * 60 * 60 * 1000,
-                ),
-                note,
-              },
-              include: {
-                user: {
-                  include: {
-                    employeeRoles: true,
+            try {
+              const attendanceRecord =
+                await this.prisma.attendanceRecord.create({
+                  data: {
+                    userId,
+                    date: dayDate,
+                    clockInAt: new Date(dayDate.getTime() + 5 * 60 * 60 * 1000), // 5:00 AM UTC
+                    clockOutAt: new Date(
+                      dayDate.getTime() +
+                        dayDuration * 60 * 60 * 1000 +
+                        5 * 60 * 60 * 1000,
+                    ),
+                    note,
                   },
-                },
-              },
-            });
+                  include: {
+                    user: {
+                      include: {
+                        employeeRoles: true,
+                      },
+                    },
+                  },
+                });
 
-            await this.createRandomTasksForAttendance(attendanceRecord);
-            createdRecords.push(attendanceRecord);
+              // Try to create tasks for this attendance record
+              try {
+                await this.createRandomTasksForAttendance(attendanceRecord);
+              } catch (taskError) {
+                // Log task creation error but don't fail the attendance creation
+                console.warn(
+                  `Failed to create tasks for attendance ${attendanceRecord.id}:`,
+                  taskError.message,
+                );
+              }
+
+              attendanceRecordsCreated++;
+            } catch (attendanceError) {
+              // Individual attendance record creation failed
+              attendanceErrorRecords.push({
+                rowIndex: i + 2,
+                userId: attendanceDto.userId,
+                userName,
+                date: dayDate.toISOString().split('T')[0],
+                error: attendanceError.message,
+              });
+            }
           }
 
-          // Add to success records
-          successRecords.push({
-            userId: attendanceDto.userId,
-            userName,
-            startDate: attendanceDto.startDate,
-            endDate: attendanceDto.endDate,
-            duration: attendanceDto.duration,
-          });
-
+          // If we created at least some attendance records, consider it a success
+          if (attendanceRecordsCreated > 0) {
+            successRecords.push({
+              userId: attendanceDto.userId,
+              userName,
+              startDate: attendanceDto.startDate,
+              endDate: attendanceDto.endDate,
+              duration: attendanceDto.duration,
+              attendanceRecordsCreated,
+            });
+          } else {
+            // No attendance records were created
+            errorRecords.push({
+              rowIndex: i + 2,
+              userId: attendanceDto.userId,
+              userName,
+              error: 'No attendance records could be created',
+              attendanceRecordsCreated: 0,
+            });
+          }
         } catch (error) {
           const user = await this.prisma.user.findUnique({
             where: { id: attendanceDto.userId },
           });
-          const userName = user?.name || user?.email || `User ${attendanceDto.userId}`;
-          
+          const userName =
+            user?.name || user?.email || `User ${attendanceDto.userId}`;
+
           errorRecords.push({
-            rowIndex: i,
+            rowIndex: i + 2,
             userId: attendanceDto.userId,
             userName,
             error: error.message,
+            attendanceRecordsCreated,
           });
         }
       }
@@ -586,7 +723,11 @@ export class AttendanceService {
           count: errorRecords.length,
           records: errorRecords,
         },
-        message: `Bulk attendance creation completed. ${successRecords.length} successful, ${errorRecords.length} failed.`,
+        attendanceErrors: {
+          count: attendanceErrorRecords.length,
+          records: attendanceErrorRecords,
+        },
+        message: `Bulk attendance creation completed. ${successRecords.length} users successful, ${errorRecords.length} users failed, ${attendanceErrorRecords.length} individual attendance records failed.`,
       };
 
       return response;
@@ -769,12 +910,12 @@ export class AttendanceService {
       if (dailyHours[i] < minHoursPerDay) dailyHours[i] = minHoursPerDay;
     }
     // Final adjustment for floating point drift
-    let total = dailyHours.reduce((a, b) => a + b, 0);
+    const total = dailyHours.reduce((a, b) => a + b, 0);
     let drift = Math.round((totalDuration - total) * 100) / 100;
     if (Math.abs(drift) > 0.01) {
       // Try to adjust the last day, but clamp to max
-      let lastIdx = numDays - 1;
-      let newVal = dailyHours[lastIdx] + drift;
+      const lastIdx = numDays - 1;
+      const newVal = dailyHours[lastIdx] + drift;
       if (newVal > maxHoursPerDay) {
         drift = newVal - maxHoursPerDay;
         dailyHours[lastIdx] = maxHoursPerDay;
@@ -1017,7 +1158,7 @@ export class AttendanceService {
     const skip = calculateSkip(normalizedPage, normalizedLimit);
 
     // Build user where condition
-    let userWhereCondition: any = {
+    const userWhereCondition: any = {
       companyId:
         targetCompanyIds.length === 1
           ? targetCompanyIds[0]
@@ -1066,7 +1207,7 @@ export class AttendanceService {
     // Helper to generate all dates in the range
     function getDatesInRange(start: Date, end: Date): Date[] {
       const dates: Date[] = [];
-      let current = new Date(start);
+      const current = new Date(start);
       while (current <= end) {
         dates.push(new Date(current));
         current.setDate(current.getDate() + 1);

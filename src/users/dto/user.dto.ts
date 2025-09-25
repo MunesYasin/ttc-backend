@@ -29,6 +29,11 @@ export class CreateUserDto {
   @Transform(({ value }) => (value ? parseInt(value as string, 10) : undefined))
   @IsOptional()
   @IsNumber()
+  subRoleId?: number;
+
+  @Transform(({ value }) => (value ? parseInt(value as string, 10) : undefined))
+  @IsOptional()
+  @IsNumber()
   companyId?: number;
 
   @IsOptional()
@@ -111,6 +116,11 @@ export class UpdateUserDto {
 
   @IsEnum(Role)
   role: Role;
+
+  @Transform(({ value }) => (value ? parseInt(value as string, 10) : undefined))
+  @IsOptional()
+  @IsNumber()
+  subRoleId?: number;
 
   @Transform(({ value }) => (value ? parseInt(value as string, 10) : undefined))
   @IsOptional()
